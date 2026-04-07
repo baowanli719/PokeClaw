@@ -58,7 +58,7 @@ public class UpdateChecker {
                 reader.close();
 
                 JSONObject release = new JSONObject(sb.toString());
-                String latestTag = release.getString("tag_name").replaceFirst("^v", "");
+                String latestTag = release.getString("tag_name").replaceFirst("^v", "").replaceFirst("-.*", "");
                 String downloadUrl = release.getString("html_url");
 
                 XLog.i(TAG, "Current: " + currentVersion + ", Latest: " + latestTag);
