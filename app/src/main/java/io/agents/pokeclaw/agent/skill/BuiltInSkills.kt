@@ -128,7 +128,11 @@ object BuiltInSkills {
         steps = listOf(
             SkillStep("open_app", mapOf("app_name" to "WhatsApp"), description = "Open WhatsApp"),
             SkillStep("wait", mapOf("duration_ms" to "2000"), description = "Wait for app"),
-            SkillStep("find_and_tap", mapOf("text" to "{contact}"), description = "Find contact"),
+            SkillStep("find_and_tap", mapOf("text" to "{contact}"), description = "Find contact in chat list", optional = true),
+            SkillStep("find_and_tap", mapOf("text" to "Search"), description = "Tap search if contact not visible", optional = true),
+            SkillStep("input_text", mapOf("text" to "{contact}"), description = "Search for contact"),
+            SkillStep("wait", mapOf("duration_ms" to "1000"), description = "Wait for search results"),
+            SkillStep("find_and_tap", mapOf("text" to "{contact}"), description = "Tap contact from results"),
             SkillStep("wait", mapOf("duration_ms" to "1000"), description = "Wait for chat"),
             SkillStep("input_text", mapOf("text" to "{message}"), description = "Type message"),
             SkillStep("find_and_tap", mapOf("text" to "Send"), description = "Tap send", optional = true),

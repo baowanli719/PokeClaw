@@ -164,7 +164,11 @@ class TaskOrchestrator(
                             taskProgressCallback?.invoke("Step $step/$total: $desc")
                             ForegroundService.updateTaskStatus(ClawApplication.instance, desc)
                         }
+                        // Notify result via both ChannelManager (for remote) and taskProgressCallback (for LOCAL UI)
+                        val resultMsg = if (skillResult.success) "Task completed: ${skillResult.message}"
+                                        else "Task failed: ${skillResult.message}"
                         ChannelManager.sendMessage(channel, skillResult.message, messageID)
+                        taskProgressCallback?.invoke(resultMsg)
                         releaseTask()
                         if (skillResult.success) FloatingCircleManager.setSuccessState()
                         else FloatingCircleManager.setErrorState()
