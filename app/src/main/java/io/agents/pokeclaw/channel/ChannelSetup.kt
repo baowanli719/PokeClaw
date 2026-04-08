@@ -27,7 +27,7 @@ class ChannelSetup(
         ChannelManager.setOnMessageReceivedListener(object : ChannelManager.OnMessageReceivedListener {
             override fun onMessageReceived(channel: Channel, message: String, messageID: String) {
                 val app = ClawApplication.instance
-                if (!ClawAccessibilityService.isRunning()) {
+                if (!ClawAccessibilityService.awaitRunning(3000)) {
                     ChannelManager.sendMessage(channel, app.getString(R.string.channel_msg_no_accessibility), messageID)
                     ChannelManager.flushMessages(channel)
                     return

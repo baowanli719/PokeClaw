@@ -40,6 +40,27 @@ public class ClawAccessibilityService extends AccessibilityService {
         return instance != null;
     }
 
+    /**
+     * Waits up to {@code timeoutMs} milliseconds for the service to connect.
+     * Use this instead of {@link #isRunning()} when the caller is on a background thread
+     * and can afford a brief wait — e.g., processing an incoming channel message at app
+     * startup before {@link #onServiceConnected()} has fired.
+     */
+    public static boolean awaitRunning(long timeoutMs) {
+        if (instance != null) return true;
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+            if (instance != null) return true;
+        }
+        return false;
+    }
+
     @Override
     public void onServiceConnected() {
         super.onServiceConnected();

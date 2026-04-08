@@ -16,3 +16,8 @@ local.properties
 
 # Build fingerprint (auto-generated)
 app/src/main/assets/.pcfp
+
+# Claude Code local session state (not for git)
+CLAUDE.local.md
+thoughts/
+.claudeignore
