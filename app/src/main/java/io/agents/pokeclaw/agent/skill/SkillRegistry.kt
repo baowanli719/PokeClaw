@@ -66,6 +66,10 @@ object SkillRegistry {
         register(BuiltInSkills.sendWhatsApp())
         register(BuiltInSkills.navigateToTab())
         register(BuiltInSkills.openAndNavigate())
+        register(BuiltInSkills.acceptPermission())
+        register(BuiltInSkills.swipeGesture())
+        register(BuiltInSkills.goBack())
+        register(BuiltInSkills.installApp())
         XLog.i(TAG, "Loaded ${skills.size} built-in skills")
     }
 

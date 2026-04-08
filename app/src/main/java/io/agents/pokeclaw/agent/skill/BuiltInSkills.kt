@@ -176,4 +176,89 @@ object BuiltInSkills {
         ),
         fallbackGoal = "Open {app_name} and navigate to the {section} section."
     )
+
+    fun acceptPermission() = Skill(
+        id = "accept_permission",
+        name = "Accept Permission",
+        description = "Accept permission dialogs, terms, or consent popups. Use when a dialog asks to Allow, Accept, or Agree.",
+        category = SkillCategory.DISMISS,
+        estimatedStepsSaved = 3,
+        parameters = emptyList(),
+        triggerPatterns = listOf("accept permission", "allow permission", "grant access"),
+        steps = listOf(
+            SkillStep("get_screen_info", description = "Check for permission dialog"),
+            SkillStep("find_and_tap", mapOf("text" to "Allow"), description = "Tap Allow", optional = true),
+            SkillStep("find_and_tap", mapOf("text" to "While using the app"), description = "Tap While using", optional = true),
+            SkillStep("find_and_tap", mapOf("text" to "Accept"), description = "Tap Accept", optional = true),
+            SkillStep("find_and_tap", mapOf("text" to "Agree"), description = "Tap Agree", optional = true),
+            SkillStep("find_and_tap", mapOf("text" to "Continue"), description = "Tap Continue", optional = true),
+            SkillStep("find_and_tap", mapOf("text" to "I agree"), description = "Tap I agree", optional = true),
+            SkillStep("find_and_tap", mapOf("text" to "ALLOW"), description = "Tap ALLOW caps", optional = true),
+        ),
+        fallbackGoal = "A permission or consent dialog appeared. Find and tap the Allow/Accept/Agree button."
+    )
+
+    fun swipeGesture() = Skill(
+        id = "swipe_gesture",
+        name = "Swipe Screen",
+        description = "Swipe the screen in a direction. Use for Tinder swipes, Instagram stories, carousels, or any swipeable content.",
+        category = SkillCategory.NAVIGATION,
+        estimatedStepsSaved = 2,
+        parameters = listOf(
+            SkillParameter("direction", "string", true, "Direction: left, right, up, or down")
+        ),
+        triggerPatterns = listOf(
+            "swipe {direction}",
+            "scroll {direction}"
+        ),
+        steps = listOf(
+            SkillStep("swipe", mapOf("direction" to "{direction}"), description = "Swipe {direction}"),
+            SkillStep("wait", mapOf("duration_ms" to "1000"), description = "Wait for animation"),
+        ),
+        fallbackGoal = "Swipe the screen {direction}."
+    )
+
+    fun goBack() = Skill(
+        id = "go_back",
+        name = "Go Back",
+        description = "Press the back button to return to the previous screen.",
+        category = SkillCategory.NAVIGATION,
+        estimatedStepsSaved = 1,
+        parameters = emptyList(),
+        triggerPatterns = listOf("go back", "press back", "navigate back"),
+        steps = listOf(
+            SkillStep("system_key", mapOf("key" to "back"), description = "Press back"),
+            SkillStep("wait", mapOf("duration_ms" to "1000"), description = "Wait for transition"),
+        ),
+        fallbackGoal = "Press the back button."
+    )
+
+    fun installApp() = Skill(
+        id = "install_app",
+        name = "Install App from Play Store",
+        description = "Search for and install an app from Google Play Store.",
+        category = SkillCategory.NAVIGATION,
+        estimatedStepsSaved = 10,
+        parameters = listOf(
+            SkillParameter("app_name", "string", true, "Name of the app to install")
+        ),
+        triggerPatterns = listOf(
+            "install {app_name}",
+            "download {app_name}",
+            "get {app_name} from play store"
+        ),
+        steps = listOf(
+            SkillStep("open_app", mapOf("app_name" to "Play Store"), description = "Open Play Store"),
+            SkillStep("wait", mapOf("duration_ms" to "3000"), description = "Wait for store"),
+            SkillStep("find_and_tap", mapOf("text" to "Search"), description = "Tap search bar", optional = true),
+            SkillStep("input_text", mapOf("text" to "{app_name}"), description = "Type app name"),
+            SkillStep("system_key", mapOf("key" to "enter"), description = "Submit search"),
+            SkillStep("wait", mapOf("duration_ms" to "3000"), description = "Wait for results"),
+            SkillStep("find_and_tap", mapOf("text" to "{app_name}"), description = "Tap app from results"),
+            SkillStep("wait", mapOf("duration_ms" to "2000"), description = "Wait for app page"),
+            SkillStep("find_and_tap", mapOf("text" to "Install"), description = "Tap Install"),
+            SkillStep("wait", mapOf("duration_ms" to "5000"), description = "Wait for install"),
+        ),
+        fallbackGoal = "In Play Store, search for '{app_name}' and tap Install."
+    )
 }
