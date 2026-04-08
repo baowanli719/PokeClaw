@@ -87,6 +87,17 @@ Every build must pass ALL checks before shipping. Run on Pixel 8 Pro (or equival
   - Overlay → system Overlay permission
   - Battery → system Battery optimization
   - File Access → system Storage settings
+- [ ] **K7. Full permission setup flow (E2E)**:
+  1. Fresh state: disable Notification Access for PokeClaw
+  2. Open PokeClaw → type "monitor Girlfriend on WhatsApp" → send
+  3. Verify: Toast shows "Enable Notification Access in Settings first"
+  4. Verify: app navigates to PokeClaw Settings page
+  5. Tap "Notification Access" row → system Notification Listener settings opens
+  6. Toggle PokeClaw ON (or OFF→ON if stale)
+  7. Verify: auto-return to PokeClaw Settings page
+  8. Verify: "Notification Access" row now shows "Connected"
+  9. Press back → return to chat → type "monitor Girlfriend on WhatsApp" again
+  10. Verify: monitor starts successfully ("✓ Auto-reply is now active")
 
 ---
 
@@ -177,8 +188,11 @@ Format: `[date] [status] [test-id] description`
 [2026-04-08] [PASS]    K1    Monitor with notification listener disconnected → Toast + navigate to app Settings page
 [2026-04-08] [PASS]    K2    Settings page shows "Notification Access" row with Connected/Disabled status
 [2026-04-08] [PASS]    K4    Toggle notification access ON in system settings → onListenerConnected → auto-return to app Settings page
-[2026-04-08] [SKIP]    K3    Accessibility auto-return — same mechanism as K4, verified by code (same startActivity pattern)
-[2026-04-08] [SKIP]    K5    Stale toggle detection — verified by K1 (isConnected() returns false even when setting shows enabled)
+[2026-04-08] [PASS]    K7    Full E2E: disable notif listener → monitor blocked → Settings → enable → auto-return → "Connected" → monitor works
+[2026-04-08] [SKIP]    K3    Accessibility auto-return — same code pattern as K4
+[2026-04-08] [SKIP]    K5    Stale toggle detection — verified by K1
+[2026-04-08] [SKIP]    K6    Settings links — each permission row navigable (needs manual tap-through)
+[2026-04-08] [ISSUE]   K3-a  Auto-return fires on EVERY service connect, not just user-initiated enable — should only fire after permission flow
 ```
 
 ### Open Issues (unfixed)
