@@ -416,8 +416,8 @@ class ComposeChatActivity : ComponentActivity() {
             try { conversation?.close() } catch (_: Exception) {}
             conversation = null
 
-            // Wait for task agent's conversation to fully close before creating new one
-            Thread.sleep(1000)
+            // Brief pause for task agent's conversation to close (if any)
+            Thread.sleep(200)
 
             engine = EngineHolder.getOrCreate(modelPath, cacheDir.path, backend)
             XLog.i(TAG, "loadModelWithBackend: engine ready")
@@ -580,7 +580,7 @@ class ComposeChatActivity : ComponentActivity() {
 
         // Release chat conversation so task agent can use the engine
         executor.submit {
-            try { appViewModel.taskOrchestrator.cancelCurrentTask(); Thread.sleep(500) } catch (_: Exception) {}
+            try { appViewModel.taskOrchestrator.cancelCurrentTask(); Thread.sleep(200) } catch (_: Exception) {}
             try { conversation?.close() } catch (_: Exception) {}
             conversation = null
             isModelReady = false
