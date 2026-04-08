@@ -140,7 +140,7 @@ As on-device models get smarter, the skills become less necessary. A future 7B o
 
 ## Download
 
-[**Download APK (v0.2.4)**](https://github.com/agents-io/PokeClaw/releases/latest)
+[**Download APK**](https://github.com/agents-io/PokeClaw/releases/latest)
 
 ### Requirements
 
