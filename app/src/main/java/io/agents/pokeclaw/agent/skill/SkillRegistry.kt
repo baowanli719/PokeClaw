@@ -40,12 +40,14 @@ object SkillRegistry {
         val lower = task.lowercase()
         return skills.values.find { skill ->
             skill.triggerPatterns.any { pattern ->
-                val regex = pattern.lowercase()
-                    .replace("{query}", "(.+)")
-                    .replace("{contact}", "(.+)")
-                    .replace("{message}", "(.+)")
-                    .replace("{text}", "(.+)")
-                Regex(regex).containsMatchIn(lower)
+                try {
+                    val regex = pattern.lowercase()
+                        .replace(Regex("\\{\\w+\\}"), "(.+)")
+                    Regex(regex).containsMatchIn(lower)
+                } catch (e: Exception) {
+                    XLog.w(TAG, "Invalid trigger pattern: $pattern", e)
+                    false
+                }
             }
         }
     }
