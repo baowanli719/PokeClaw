@@ -1296,12 +1296,29 @@ private fun TaskSkillsPanel(
                 fontWeight = FontWeight.Bold,
                 color = colors.textPrimary,
             )
-            Text(
-                "Experimental — work in progress",
-                fontSize = 11.sp,
-                color = colors.textTertiary.copy(alpha = 0.6f),
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
+            Row(
+                modifier = Modifier.padding(top = 6.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFFFBBF24),
+                ) {
+                    Text(
+                        "BETA",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "We just started improving this. Expect rough edges.",
+                    fontSize = 12.sp,
+                    color = colors.textTertiary,
+                )
+            }
         }
 
         item {
