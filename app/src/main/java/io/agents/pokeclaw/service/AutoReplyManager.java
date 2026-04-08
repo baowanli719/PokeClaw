@@ -402,41 +402,10 @@ public class AutoReplyManager {
     }
 
     private String generateReplyCloud(String prompt) {
-        String apiKey = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmApiKey();
-        String baseUrl = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmBaseUrl();
-        String modelName = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmModelName();
-
-        if (apiKey.isEmpty()) {
-            // Try provider-specific key
-            String provider = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmProvider();
-            apiKey = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getApiKeyForProvider(provider);
-        }
-
-        if (apiKey.isEmpty()) {
-            XLog.w(TAG, "generateReplyCloud: no API key configured");
-            return null;
-        }
-
-        XLog.i(TAG, "generateReplyCloud: using " + modelName + " via " + baseUrl);
-
-        dev.langchain4j.model.chat.ChatModel chatModel = dev.langchain4j.model.openai.OpenAiChatModel.builder()
-            .httpClientBuilder(new io.agents.pokeclaw.agent.langchain.http.OkHttpClientBuilderAdapter())
-            .apiKey(apiKey)
-            .modelName(modelName.isEmpty() ? "gpt-4o-mini" : modelName)
-            .baseUrl(baseUrl.isEmpty() ? "https://api.openai.com/v1" : baseUrl)
-            .temperature(0.7)
-            .build();
-
-        java.util.List<dev.langchain4j.data.message.ChatMessage> messages = new java.util.ArrayList<>();
-        messages.add(dev.langchain4j.data.message.SystemMessage.from(REPLY_SYSTEM_PROMPT));
-        messages.add(dev.langchain4j.data.message.UserMessage.from(prompt));
-
-        dev.langchain4j.model.chat.request.ChatRequest request = dev.langchain4j.model.chat.request.ChatRequest.builder()
-            .messages(messages)
-            .build();
-        dev.langchain4j.model.chat.response.ChatResponse response = chatModel.chat(request);
-
-        String reply = response.aiMessage().text();
+        XLog.i(TAG, "generateReplyCloud: using LlmSessionManager");
+        String reply = io.agents.pokeclaw.agent.llm.LlmSessionManager.INSTANCE.singleShotCloud(
+            REPLY_SYSTEM_PROMPT, prompt, 0.7
+        );
         if (reply != null) {
             reply = reply.replaceAll("^[\"']|[\"']$", "").trim();
             if (reply.startsWith("Your reply:")) reply = reply.substring(11).trim();
@@ -792,58 +761,7 @@ public class AutoReplyManager {
      * For quick targeted questions like "which node is the send button?"
      */
     private String singleLlmCall(String prompt) {
-        try {
-            String provider = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmProvider();
-
-            if (!"LOCAL".equals(provider)) {
-                // Cloud LLM
-                String apiKey = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmApiKey();
-                String baseUrl = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmBaseUrl();
-                String modelName = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLlmModelName();
-                if (apiKey.isEmpty()) {
-                    apiKey = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getApiKeyForProvider(provider);
-                }
-                if (apiKey.isEmpty()) return null;
-
-                dev.langchain4j.model.chat.ChatModel chatModel = dev.langchain4j.model.openai.OpenAiChatModel.builder()
-                    .httpClientBuilder(new io.agents.pokeclaw.agent.langchain.http.OkHttpClientBuilderAdapter())
-                    .apiKey(apiKey)
-                    .modelName(modelName.isEmpty() ? "gpt-4o-mini" : modelName)
-                    .baseUrl(baseUrl.isEmpty() ? "https://api.openai.com/v1" : baseUrl)
-                    .temperature(0.3)
-                    .build();
-
-                java.util.List<dev.langchain4j.data.message.ChatMessage> messages = new java.util.ArrayList<>();
-                messages.add(dev.langchain4j.data.message.UserMessage.from(prompt));
-
-                dev.langchain4j.model.chat.request.ChatRequest request = dev.langchain4j.model.chat.request.ChatRequest.builder()
-                    .messages(messages)
-                    .build();
-                dev.langchain4j.model.chat.response.ChatResponse response = chatModel.chat(request);
-                return response.aiMessage().text();
-            } else {
-                // Local LLM — use LiteRT-LM for quick inference
-                String modelPath = io.agents.pokeclaw.utils.KVUtils.INSTANCE.getLocalModelPath();
-                if (modelPath == null || modelPath.isEmpty()) return null;
-
-                String cacheDir = io.agents.pokeclaw.ClawApplication.Companion.getInstance().getCacheDir().getPath();
-                com.google.ai.edge.litertlm.Engine engine =
-                    io.agents.pokeclaw.agent.llm.EngineHolder.INSTANCE.getOrCreate(modelPath, cacheDir);
-                com.google.ai.edge.litertlm.Conversation conv = engine.createConversation(
-                    new com.google.ai.edge.litertlm.ConversationConfig(
-                        com.google.ai.edge.litertlm.Contents.Companion.of("You are a UI assistant. Answer concisely."),
-                        java.util.Collections.emptyList(), java.util.Collections.emptyList(),
-                        new com.google.ai.edge.litertlm.SamplerConfig(64, 0.95, 0.3, 0)
-                    )
-                );
-                com.google.ai.edge.litertlm.Message response = conv.sendMessage(prompt, java.util.Collections.emptyMap());
-                conv.close();
-                return response.getContents() != null ? response.getContents().toString().trim() : null;
-            }
-        } catch (Exception e) {
-            XLog.w(TAG, "singleLlmCall failed", e);
-            return null;
-        }
+        return io.agents.pokeclaw.agent.llm.LlmSessionManager.INSTANCE.singleShot(prompt, 0.3);
     }
 
     /** Find a clickable node whose resource ID contains the keyword */
