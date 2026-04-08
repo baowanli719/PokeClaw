@@ -103,6 +103,7 @@ fun ChatScreen(
     conversations: List<ChatHistoryManager.ConversationSummary>,
     onSelectConversation: (ChatHistoryManager.ConversationSummary) -> Unit,
     onDeleteConversation: (ChatHistoryManager.ConversationSummary) -> Unit = {},
+    onRenameConversation: (ChatHistoryManager.ConversationSummary, String) -> Unit = { _, _ -> },
     activeTasks: List<String> = emptyList(),
     onStopTask: (String) -> Unit = {},
     onStopAllTasks: () -> Unit = {},
@@ -148,6 +149,7 @@ fun ChatScreen(
                         onSelectConversation(it)
                     },
                     onDeleteConversation = onDeleteConversation,
+                    onRenameConversation = onRenameConversation,
                     onSettings = {
                         scope.launch { drawerState.close() }
                         onOpenSettings()
@@ -1156,12 +1158,61 @@ private fun SidebarContent(
     onNewChat: () -> Unit,
     onSelectConversation: (ChatHistoryManager.ConversationSummary) -> Unit,
     onDeleteConversation: (ChatHistoryManager.ConversationSummary) -> Unit,
+    onRenameConversation: (ChatHistoryManager.ConversationSummary, String) -> Unit,
     onSettings: () -> Unit,
     onModels: () -> Unit,
     colors: PokeclawColors,
 ) {
+    var actionTarget by remember { mutableStateOf<ChatHistoryManager.ConversationSummary?>(null) }
     var deleteTarget by remember { mutableStateOf<ChatHistoryManager.ConversationSummary?>(null) }
+    var renameTarget by remember { mutableStateOf<ChatHistoryManager.ConversationSummary?>(null) }
+    var renameText by remember { mutableStateOf("") }
 
+    // Long-press action menu: Rename / Delete
+    if (actionTarget != null) {
+        AlertDialog(
+            onDismissRequest = { actionTarget = null },
+            title = { Text(actionTarget!!.title, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column {
+                    TextButton(
+                        onClick = {
+                            renameTarget = actionTarget
+                            renameText = actionTarget!!.title
+                            actionTarget = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = colors.textPrimary, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("Rename", color = colors.textPrimary)
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            deleteTarget = actionTarget
+                            actionTarget = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("Delete", color = Color(0xFFF87171))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { actionTarget = null }) { Text("Cancel", color = colors.textSecondary) }
+            },
+            containerColor = colors.surface,
+        )
+    }
+
+    // Delete confirmation
     if (deleteTarget != null) {
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -1175,6 +1226,42 @@ private fun SidebarContent(
             },
             dismissButton = {
                 TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = colors.textSecondary) }
+            },
+            containerColor = colors.surface,
+        )
+    }
+
+    // Rename dialog
+    if (renameTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename conversation", color = colors.textPrimary) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = colors.inputBorder,
+                        cursorColor = colors.accent,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newName = renameText.trim()
+                    if (newName.isNotEmpty() && renameTarget != null) {
+                        onRenameConversation(renameTarget!!, newName)
+                    }
+                    renameTarget = null
+                }) { Text("Save", color = colors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = colors.textSecondary) }
             },
             containerColor = colors.surface,
         )
@@ -1251,7 +1338,7 @@ private fun SidebarContent(
                         .fillMaxWidth()
                         .combinedClickable(
                             onClick = { onSelectConversation(conv) },
-                            onLongClick = { deleteTarget = conv },
+                            onLongClick = { actionTarget = conv },
                         ),
                     color = androidx.compose.ui.graphics.Color.Transparent,
                 ) {

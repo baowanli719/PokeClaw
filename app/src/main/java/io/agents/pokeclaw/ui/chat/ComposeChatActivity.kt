@@ -148,7 +148,12 @@ class ComposeChatActivity : ComponentActivity() {
                 onSelectConversation = { loadConversation(it) },
                 onDeleteConversation = { conv ->
                     val deleted = ChatHistoryManager.delete(conv.file)
-                    XLog.i(TAG, "Delete conversation: ${conv.file.absolutePath} exists=${conv.file.exists()} deleted=$deleted")
+                    XLog.i(TAG, "Delete conversation: ${conv.file.absolutePath} deleted=$deleted")
+                    loadSidebarHistory()
+                },
+                onRenameConversation = { conv, newName ->
+                    val renamed = ChatHistoryManager.rename(conv.file, newName)
+                    XLog.i(TAG, "Rename conversation: '${conv.title}' → '$newName' renamed=$renamed")
                     loadSidebarHistory()
                 },
                 activeTasks = activeTasks,

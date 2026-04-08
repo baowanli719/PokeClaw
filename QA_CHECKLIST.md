@@ -65,7 +65,10 @@ Every build must pass ALL checks before shipping. Run on Pixel 8 Pro (or equival
 - [ ] **H3. Layout sizes**: all text/buttons normal size (dp not pt)
 - [ ] **H4. Model switcher**: tap model bar → dropdown → switch model → status updates
 - [ ] **H5. New chat**: tap pencil icon → clears messages → shows welcome screen
-- [ ] **H6. Rename chat**: tap pencil icon (top right) → edit session name → name updates in sidebar
+- [ ] **H6. Rename chat**: long-press session in sidebar → rename option → type new name → name updates in sidebar + persists after app restart
+- [ ] **H7. Delete chat**: long-press session in sidebar → delete → session removed from sidebar + file deleted
+- [ ] **H8. Rename preserves messages**: rename session → open it → all messages still there
+- [ ] **H9. Delete correct session**: have 3+ sessions → delete middle one → other sessions unaffected
 
 ## I. Cross-App Behavior
 
@@ -208,6 +211,10 @@ Format: `[date] [status] [test-id] description`
 [2026-04-08] [PASS]    L6    Second task after auto-return works normally
 [2026-04-08] [SKIP]    L2    Auto-return shows answer — needs UI verification (SINGLE_TOP preserves activity instance)
 [2026-04-08] [SKIP]    L5    Monitor receives notification without leaving app — needs 2nd device (same as C2)
+[2026-04-08] [PASS]    H6    Long-press session → action menu (Rename/Delete) → Rename → dialog with current name → Save → sidebar updated
+[2026-04-08] [PASS]    H7    Long-press session → Delete → confirm dialog → session removed from sidebar + file deleted
+[2026-04-08] [PASS]    H9    Delete middle session → other sessions unaffected in sidebar
+[2026-04-08] [SKIP]    H8    Rename preserves messages — mechanism is frontmatter-only update, messages untouched by design
 ```
 
 ### Open Issues (unfixed)

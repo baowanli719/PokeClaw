@@ -204,6 +204,25 @@ object ChatHistoryManager {
     }
 
     /**
+     * Rename a conversation by updating the title in the markdown frontmatter.
+     */
+    fun rename(file: File, newTitle: String): Boolean {
+        if (!file.exists()) return false
+        try {
+            val content = file.readText()
+            val updated = content.replaceFirst(
+                Regex("(?m)^title: .+$"),
+                "title: $newTitle"
+            )
+            file.writeText(updated)
+            return true
+        } catch (e: Exception) {
+            io.agents.pokeclaw.utils.XLog.e("ChatHistoryManager", "Failed to rename conversation", e)
+            return false
+        }
+    }
+
+    /**
      * Delete a conversation.
      */
     fun delete(file: File): Boolean = file.delete()
