@@ -600,13 +600,20 @@ class ComposeChatActivity : ComponentActivity() {
     private fun handleTaskProgress(msg: String) {
         try {
             when {
-                // Completion signals → cleanup
+                // Task completed with answer: "Task completed: {answer}"
+                msg.startsWith("Task completed:") -> {
+                    val answer = msg.removePrefix("Task completed:").trim()
+                    replaceTypingIndicator(answer)
+                    cleanupAfterTask()
+                    checkAutoReplyConfirmation(msg)
+                }
                 msg.startsWith("Task completed") || msg.startsWith("Task cancelled") -> {
+                    removeTypingIndicator()
                     cleanupAfterTask()
                     checkAutoReplyConfirmation(msg)
                 }
                 msg.startsWith("Task failed") || msg.startsWith("Blocked") -> {
-                    addSystem(msg)
+                    replaceTypingIndicator(msg)
                     cleanupAfterTask()
                 }
                 // Internal progress → hide
@@ -615,16 +622,30 @@ class ComposeChatActivity : ComponentActivity() {
                 msg.endsWith("...") || msg.startsWith("Step ") || msg.startsWith("Retrying") -> {
                     addSystem(msg)
                 }
-                // LLM response → bot bubble (replace typing indicator)
+                // LLM mid-task response → bot bubble
                 else -> {
-                    val idx = _messages.indexOfLast { it.role == ChatMessage.Role.ASSISTANT && it.content == "..." }
-                    if (idx >= 0) _messages[idx] = ChatMessage(ChatMessage.Role.ASSISTANT, msg)
-                    else _messages.add(ChatMessage(ChatMessage.Role.ASSISTANT, msg))
+                    replaceTypingIndicator(msg)
                 }
             }
         } catch (e: Exception) {
             XLog.w(TAG, "handleTaskProgress error", e)
         }
+    }
+
+    /** Replace "..." typing indicator with actual text, or add new message. */
+    private fun replaceTypingIndicator(text: String) {
+        val idx = _messages.indexOfLast { it.role == ChatMessage.Role.ASSISTANT && it.content == "..." }
+        if (idx >= 0) {
+            _messages[idx] = ChatMessage(ChatMessage.Role.ASSISTANT, text)
+        } else {
+            _messages.add(ChatMessage(ChatMessage.Role.ASSISTANT, text))
+        }
+    }
+
+    /** Remove "..." typing indicator if it exists. */
+    private fun removeTypingIndicator() {
+        val idx = _messages.indexOfLast { it.role == ChatMessage.Role.ASSISTANT && it.content == "..." }
+        if (idx >= 0) _messages.removeAt(idx)
     }
 
     /** Clean up state after any task finishes. */

@@ -309,12 +309,9 @@ class TaskOrchestrator(
 
             override fun onComplete(round: Int, finalAnswer: String, totalTokens: Int) {
                 XLog.i(TAG, "onComplete: rounds=$round, totalTokens=$totalTokens, answer=$finalAnswer")
-                // Show the actual answer first (as bot bubble)
-                if (finalAnswer.isNotEmpty() && !finalAnswer.startsWith("Task completed")) {
-                    taskProgressCallback?.invoke(finalAnswer)
-                }
-                // Then send completion signal (triggers cleanup in ComposeChatActivity)
-                taskProgressCallback?.invoke("Task completed.")
+                // Single callback with answer — prefix "Task completed:" so UI can detect completion + show answer
+                val answer = finalAnswer.ifEmpty { "Done." }
+                taskProgressCallback?.invoke("Task completed: $answer")
                 ForegroundService.resetToIdle(ClawApplication.instance)
                 flushRoundBuffer()
                 releaseTask()
