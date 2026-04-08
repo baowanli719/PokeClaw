@@ -65,11 +65,54 @@ Every build must pass ALL checks before shipping. Run on Pixel 8 Pro (or equival
 - [ ] **H4. Model switcher**: tap model bar → dropdown → switch model → status updates
 - [ ] **H5. New chat**: tap pencil icon → clears messages → shows welcome screen
 
+## I. Cross-App Behavior
+
+- [ ] **I1. Floating button visible in other apps**: start task → agent navigates to WhatsApp/YouTube → floating button visible on top
+- [ ] **I2. Return to PokeClaw mid-task**: while task runs in WhatsApp → press recents → tap PokeClaw → see task progress + stop button
+- [ ] **I3. Notification during task**: incoming notification while task runs → task not disrupted
+
+## J. Stress / Edge Cases
+
+- [ ] **J1. Rapid fire**: send 3 messages quickly → no crash, messages queued or latest wins
+- [ ] **J2. Empty input**: tap send with empty field → nothing happens
+- [ ] **J3. Very long input**: paste 500+ character task → no crash, task starts normally
+- [ ] **J4. Accessibility lost mid-task**: if accessibility revokes during task → graceful error, not stuck
+- [ ] **J5. Network lost mid-task**: if WiFi drops during Cloud task → error message, not infinite loop
+- [ ] **J6. App killed and reopened**: force stop → reopen → clean state, no ghost tasks
+- [ ] **J7. Monitor + task simultaneous**: monitor Girlfriend active → send task "open YouTube" → both work, monitor not disrupted
+
 ---
 
-## Known Issues (to fix)
-- Floating button flashes briefly on chat questions (TASK_NOTIFY → SUCCESS)
-- "Accessibility service starting..." appears on every new chat
-- Floating button may disappear when navigating to other apps during long tasks
-- Top bar "Task running..." not reliably showing (isProcessing state issue)
-- Send button not turning red during task execution
+## QA Debug Changelog
+
+Format: `[date] [status] [test-id] description`
+
+### 2026-04-08 — Initial QA run
+
+```
+[2026-04-08] [PASS]    A1  Chat question "what is 2+2" → answer in bot bubble, 1 round
+[2026-04-08] [ISSUE]   A1  Floating button flashed briefly (TASK_NOTIFY → SUCCESS) on chat question
+[2026-04-08] [ISSUE]   A1  "Accessibility service starting..." shows in every new chat
+[2026-04-08] [PASS]    B1  Send message to Girlfriend → send_message tool called, 2 rounds
+[2026-04-08] [PASS]    C1  Monitor Girlfriend → Java routing, top bar shows "Monitoring: Girlfriend"
+[2026-04-08] [PASS]    C2  Auto-reply with Cloud LLM → GPT-4o-mini generated reply, sent successfully
+[2026-04-08] [PASS]    F5  Second task works after first completes
+[2026-04-08] [PASS]    H1  Floating button size normal (dp fix applied)
+[2026-04-08] [ISSUE]   F1  Top bar "Task running..." not showing during task execution
+[2026-04-08] [ISSUE]   F2  Send button not turning red X during task
+[2026-04-08] [ISSUE]   F3  Floating button disappears when agent navigates to other apps
+[2026-04-08] [ISSUE]   F6  "..." typing indicator coexists with tool action messages
+[2026-04-08] [ISSUE]   B2  YouTube task: LLM completed but user stuck in YouTube, no auto-return
+```
+
+### Open Issues (unfixed)
+
+| ID | Issue | Root Cause | Priority |
+|----|-------|-----------|----------|
+| A1-a | Floating button flashes on chat questions | `onToolCall(finish)` triggers TASK_NOTIFY even for finish-only calls | Medium |
+| A1-b | "Accessibility starting..." on every new chat | `sendTask()` accessibility check fires before task routing | Low |
+| F1 | Top bar "Task running..." not showing | `isProcessing` not propagated to Compose recomposition during task | High |
+| F2 | Send button not turning red | Same root cause as F1 | High |
+| F3 | Floating button invisible in other apps | EasyFloat overlay may be behind app windows or reclaimed by system | High |
+| F6 | "..." coexists with tool actions | Typing indicator not removed when first ToolAction arrives | Medium |
+| B2-a | No auto-return after task in other app | Agent completes in YouTube but doesn't navigate back to PokeClaw | Low |
