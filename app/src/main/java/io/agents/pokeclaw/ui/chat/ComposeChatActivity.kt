@@ -3,6 +3,7 @@
 
 package io.agents.pokeclaw.ui.chat
 
+import io.agents.pokeclaw.TaskEvent
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -572,9 +573,9 @@ class ComposeChatActivity : ComponentActivity() {
         val taskText = text
         val taskId = "task_${System.currentTimeMillis()}"
 
-        // Register progress callback — routes TaskOrchestrator events to chat UI
-        appViewModel.taskOrchestrator.taskProgressCallback = { msg ->
-            runOnUiThread { handleTaskProgress(msg) }
+        // Register typed event callback — routes TaskOrchestrator events to chat UI
+        appViewModel.taskOrchestrator.taskEventCallback = { event ->
+            runOnUiThread { handleTaskEvent(event) }
         }
 
         // Release chat conversation so task agent can use the engine
@@ -596,39 +597,47 @@ class ComposeChatActivity : ComponentActivity() {
         }
     }
 
-    /** Route a task progress message to the correct UI element. */
-    private fun handleTaskProgress(msg: String) {
+    /** Handle typed events from TaskOrchestrator — no string parsing. */
+    private fun handleTaskEvent(event: TaskEvent) {
         try {
-            when {
-                // Task completed with answer: "Task completed: {answer}"
-                msg.startsWith("Task completed:") -> {
-                    val answer = msg.removePrefix("Task completed:").trim()
-                    replaceTypingIndicator(answer)
+            when (event) {
+                is TaskEvent.Completed -> {
+                    replaceTypingIndicator(event.answer)
                     cleanupAfterTask()
-                    checkAutoReplyConfirmation(msg)
+                    checkAutoReplyConfirmation()
                 }
-                msg.startsWith("Task completed") || msg.startsWith("Task cancelled") -> {
+                is TaskEvent.Failed -> {
+                    replaceTypingIndicator("Error: ${event.error}")
+                    cleanupAfterTask()
+                }
+                is TaskEvent.Cancelled -> {
                     removeTypingIndicator()
                     cleanupAfterTask()
-                    checkAutoReplyConfirmation(msg)
                 }
-                msg.startsWith("Task failed") || msg.startsWith("Blocked") -> {
-                    replaceTypingIndicator(msg)
+                is TaskEvent.Blocked -> {
+                    replaceTypingIndicator("Blocked by system dialog.")
                     cleanupAfterTask()
                 }
-                // Internal progress → hide
-                msg.startsWith("Reading screen") || msg.startsWith("Starting task") -> { }
-                // Tool actions → grey system text
-                msg.endsWith("...") || msg.startsWith("Step ") || msg.startsWith("Retrying") -> {
-                    addSystem(msg)
+                is TaskEvent.ToolAction -> {
+                    // Don't show "Finish Task..." — that's just completion
+                    if (!event.toolName.contains("Finish", ignoreCase = true)) {
+                        addSystem("${event.toolName}...")
+                    }
                 }
-                // LLM mid-task response → bot bubble
-                else -> {
-                    replaceTypingIndicator(msg)
+                is TaskEvent.ToolResult -> {
+                    if (!event.success) addSystem("${event.toolName} failed")
                 }
+                is TaskEvent.Response -> {
+                    replaceTypingIndicator(event.text)
+                }
+                is TaskEvent.Progress -> {
+                    addSystem(event.description)
+                }
+                // These are handled by floating button / notification, not chat
+                is TaskEvent.LoopStart, is TaskEvent.TokenUpdate, is TaskEvent.Thinking -> { }
             }
         } catch (e: Exception) {
-            XLog.w(TAG, "handleTaskProgress error", e)
+            XLog.w(TAG, "handleTaskEvent error", e)
         }
     }
 
@@ -651,7 +660,7 @@ class ComposeChatActivity : ComponentActivity() {
     /** Clean up state after any task finishes. */
     private fun cleanupAfterTask() {
         _isProcessing.value = false
-        appViewModel.taskOrchestrator.taskProgressCallback = null
+        appViewModel.taskOrchestrator.taskEventCallback = null
         Handler(Looper.getMainLooper()).postDelayed({
             try { loadModelIfReady() } catch (e: Exception) {
                 XLog.e(TAG, "cleanupAfterTask: loadModel error", e)
@@ -659,9 +668,8 @@ class ComposeChatActivity : ComponentActivity() {
         }, 500)
     }
 
-    /** If auto-reply was enabled, show confirmation and press Home. */
-    private fun checkAutoReplyConfirmation(msg: String) {
-        if (!msg.startsWith("Task completed")) return
+    /** If auto-reply was enabled by the task, show confirmation and press Home. */
+    private fun checkAutoReplyConfirmation() {
         val arm = io.agents.pokeclaw.service.AutoReplyManager.getInstance()
         if (!arm.isEnabled) return
         val contacts = arm.monitoredContacts.joinToString(", ") { it.replaceFirstChar { c -> c.uppercase() } }
