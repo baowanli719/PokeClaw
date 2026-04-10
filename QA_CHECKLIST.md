@@ -712,6 +712,8 @@ Format: `[date] [status] [test-id] description`
 [2026-04-09] [PASS]    Q4-2  Cloud Quick Task E2E: 🦞 Reddit → tap → fills input → send → agent navigated Reddit + searched pokeclaw
 [2026-04-09] [FIXED]   L1-v9 Session restore — onCreate reads CURRENT_CONVERSATION_ID from KVUtils, reloads saved messages. replaceTypingIndicator now calls saveChat() to persist task results immediately. Verified: "Restored 7 messages from conversation chat_1775787808468"
 [2026-04-09] [NOTE]    Accessibility can't be enabled via ADB on Android 16 — isRunning() checks runtime flag. Force-stop kills service. Normal app lifecycle preserves it.
+[2026-04-09] [BLOCKED] Q4-2/Q7 Cloud+Local Task E2E — needs manual accessibility enable on device. Backend verified via broadcast (all PASS). UI send path blocks on accessibility check → PokeClaw Settings (UX fix verified).
+[2026-04-09] [TODO]    Manual test needed: enable Accessibility on device → send task via UI → verify result appears in chatroom after auto-return → verify model tag shows correct model
 [2026-04-09] [FIXED]   F2-v9 Stop button slow — added Future.cancel(true) to interrupt agent thread + abort HTTP call immediately (was: flag-only, waited for LLM round to finish)
 [2026-04-09] [ISSUE]   F2-v9 Stop → return to same session — after stopping task, should return to the SAME chat session, not open new one
 [2026-04-09] [ISSUE]   L1-v9 Auto-return should preserve session — after task completes in other app and auto-returns to PokeClaw, should show the same conversation with the result, not a fresh session
