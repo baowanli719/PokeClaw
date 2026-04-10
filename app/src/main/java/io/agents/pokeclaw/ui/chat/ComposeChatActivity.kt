@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.appViewModel
 import io.agents.pokeclaw.floating.FloatingCircleManager
@@ -85,6 +86,10 @@ class ComposeChatActivity : ComponentActivity() {
         )
     }
 
+    private val activeTaskShellController by lazy {
+        ActiveTaskShellController(appViewModel = appViewModel)
+    }
+
     // Permission polling
     private val permHandler = Handler(Looper.getMainLooper())
     private val permPoller = object : Runnable {
@@ -120,19 +125,7 @@ class ComposeChatActivity : ComponentActivity() {
         val composeColors = with(ThemeManager) { themeColors.toComposeColors() }
 
         setContent {
-            // Poll AutoReplyManager state every 2 seconds
-            val autoReplyManager = io.agents.pokeclaw.service.AutoReplyManager.getInstance()
-            var activeTasks by remember { mutableStateOf(listOf<String>()) }
-            LaunchedEffect(Unit) {
-                while (true) {
-                    activeTasks = if (autoReplyManager.isEnabled) {
-                        autoReplyManager.monitoredContacts.map { it.replaceFirstChar { c -> c.uppercase() } }
-                    } else {
-                        emptyList()
-                    }
-                    kotlinx.coroutines.delay(2000)
-                }
-            }
+            val activeTasks by activeTaskShellController.activeTasks.collectAsState()
 
             ChatScreen(
                 messages = _messages.toList(),
@@ -170,31 +163,18 @@ class ComposeChatActivity : ComponentActivity() {
                 },
                 activeTasks = activeTasks,
                 onStopTask = { contact ->
-                    autoReplyManager.removeContact(contact.lowercase())
-                    if (autoReplyManager.monitoredContacts.isEmpty()) {
-                        autoReplyManager.isEnabled = false
-                    }
-                    Toast.makeText(this, "Stopped monitoring $contact", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        activeTaskShellController.stopTask(contact),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 },
                 onStopAllTasks = {
-                    // Cancel running agent task
-                    var requestedTaskStop = false
-                    if (appViewModel.isTaskRunning()) {
-                        appViewModel.stopTask()
-                        requestedTaskStop = true
-                    }
-                    // Stop all monitoring
-                    var stoppedMonitoring = false
-                    if (autoReplyManager.isEnabled) {
-                        autoReplyManager.stopAll()
-                        stoppedMonitoring = true
-                    }
-                    val message = when {
-                        requestedTaskStop -> "Stopping current task..."
-                        stoppedMonitoring -> "All tasks stopped"
-                        else -> "No active tasks"
-                    }
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        activeTaskShellController.stopAllTasks(),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 },
                 onModelSwitch = { modelId, displayName -> switchModel(modelId, displayName) },
                 colors = composeColors,
@@ -270,6 +250,7 @@ class ComposeChatActivity : ComponentActivity() {
         refreshSidebarHistory()
         permHandler.removeCallbacks(permPoller)
         permHandler.postDelayed(permPoller, 1000)
+        activeTaskShellController.onResume()
         chatSessionController.onResume()
     }
 
@@ -277,6 +258,7 @@ class ComposeChatActivity : ComponentActivity() {
         super.onPause()
         saveChat()
         permHandler.removeCallbacks(permPoller)
+        activeTaskShellController.onPause()
         chatSessionController.onPause(conversationStore.currentConversationId)
     }
 

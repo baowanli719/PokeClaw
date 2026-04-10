@@ -16,7 +16,10 @@ import io.agents.pokeclaw.utils.XLog;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -40,8 +43,8 @@ public class AutoReplyManager {
     private static AutoReplyManager instance;
 
     private boolean enabled = false;
-    private final Set<String> monitoredContacts = new HashSet<>();
-    private final Set<String> monitoredApps = new HashSet<>();
+    private final Map<String, String> monitoredContacts = new LinkedHashMap<>();
+    private final Set<String> monitoredApps = new LinkedHashSet<>();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean replying = new AtomicBoolean(false);
 
@@ -80,13 +83,13 @@ public class AutoReplyManager {
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         XLog.i(TAG, "Auto-reply " + (enabled ? "ENABLED" : "DISABLED") +
-                " for contacts: " + monitoredContacts);
+                " for contacts: " + getMonitoredContacts());
     }
 
     public boolean isEnabled() { return enabled; }
 
     public Set<String> getMonitoredContacts() {
-        return new HashSet<>(monitoredContacts);
+        return new LinkedHashSet<>(monitoredContacts.values());
     }
 
     public void stopAll() {
@@ -96,12 +99,13 @@ public class AutoReplyManager {
     }
 
     public void addContact(String name) {
-        monitoredContacts.add(name.toLowerCase());
-        XLog.i(TAG, "Added contact: " + name);
+        String displayName = name.trim();
+        monitoredContacts.put(normalizeName(displayName), displayName);
+        XLog.i(TAG, "Added contact: " + displayName);
     }
 
     public void removeContact(String name) {
-        monitoredContacts.remove(name.toLowerCase());
+        monitoredContacts.remove(normalizeName(name));
     }
 
     public void clearContacts() {
@@ -156,10 +160,11 @@ public class AutoReplyManager {
         String senderLower = title.toLowerCase();
         boolean isMonitored = false;
         String matchedContact = "";
-        for (String contact : monitoredContacts) {
-            if (senderLower.contains(contact)) {
+        for (Map.Entry<String, String> entry : monitoredContacts.entrySet()) {
+            String contactKey = entry.getKey();
+            if (senderLower.contains(contactKey)) {
                 isMonitored = true;
-                matchedContact = title; // Use original case
+                matchedContact = entry.getValue();
                 break;
             }
         }
@@ -346,6 +351,10 @@ public class AutoReplyManager {
                 }
             }
         });
+    }
+
+    private String normalizeName(String name) {
+        return name.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
     /**

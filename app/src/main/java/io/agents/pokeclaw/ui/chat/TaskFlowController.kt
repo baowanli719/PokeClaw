@@ -52,7 +52,7 @@ class TaskFlowController(
 
     fun sendTask(text: String) {
         val lower = text.lowercase()
-        if (lower.contains("monitor") || lower.contains("auto-reply") || lower.contains("auto reply")
+        if (lower.contains("monitor") || lower.contains("auto-reply") || lower.contains("auto reply") || lower.contains("autoreply")
             || lower.contains("watch") && (lower.contains("message") || lower.contains("reply"))) {
             handleMonitorTask(text)
             return
@@ -132,15 +132,14 @@ class TaskFlowController(
     }
 
     fun handleMonitorTask(text: String) {
-        val contact = extractContactName(text)
-        if (contact.isEmpty()) {
+        val requestedContact = extractContactName(text)
+        if (requestedContact.isEmpty()) {
             addUser(text)
             addSystem("Could not figure out who to monitor. Try: \"Monitor Mom on WhatsApp\"")
             return
         }
 
         addUser(text)
-
         val missing = AppCapabilityCoordinator.missingMonitorRequirements(activity)
         if (missing.isNotEmpty()) {
             Toast.makeText(
@@ -152,6 +151,7 @@ class TaskFlowController(
             return
         }
 
+        val contact = requestedContact
         uiState.isProcessing.value = true
         addSystem("Setting up auto-reply for $contact...")
 
@@ -239,9 +239,7 @@ class TaskFlowController(
     private fun checkAutoReplyConfirmation() {
         val autoReplyManager = AutoReplyManager.getInstance()
         if (!autoReplyManager.isEnabled) return
-        val contacts = autoReplyManager.monitoredContacts.joinToString(", ") {
-            it.replaceFirstChar { char -> char.uppercase() }
-        }
+        val contacts = autoReplyManager.monitoredContacts.joinToString(", ")
         addSystem("✓ Auto-reply active for $contacts.\nMonitoring in background — stop from bar above.")
         XLog.i(TAG, "checkAutoReplyConfirmation: monitor active, staying in PokeClaw")
     }

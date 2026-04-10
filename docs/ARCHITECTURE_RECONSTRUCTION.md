@@ -300,6 +300,54 @@ Pull task-specific UI flow out of the Activity so task orchestration work stops 
 - Missing Accessibility still redirected task flow into in-app `SettingsActivity` instead of silently failing
 - Cold start is no longer blocked by Android 15 foreground-service restrictions because app-start `ForegroundService.start()` now fails closed instead of crashing the process
 
+## Phase 2c — Active Task Shell Boundary
+
+### Status
+
+- Landed locally, pending commit
+- Current landing scope: `ActiveTaskShellController` now owns active monitor/task shell state, periodic `AutoReplyManager` polling, and Stop / Stop All actions instead of leaving `ComposeChatActivity` to poll and mutate task-shell state directly
+
+### Goal
+
+Pull the active-task top bar out of the Activity so shell-state polling and stop actions stop drifting from the rest of the task flow.
+
+### New boundary
+
+`ActiveTaskShellController` owns:
+
+- active monitor/task shell polling cadence
+- top-bar task list state exposed as `StateFlow`
+- per-monitor stop action
+- stop-all behavior for active task + monitor shells
+- monitor display names as rendered shell state
+
+### Keep in `ComposeChatActivity`
+
+- lifecycle hooks (`onResume` / `onPause`)
+- Compose bindings (`collectAsState`)
+- toast display
+- navigation / settings entry points
+
+### Must Preserve
+
+- same `Monitoring: ...` top bar
+- same expand → `Stop` affordance
+- same stop-all behavior
+- same in-app permission guidance when debug/task entry hits monitor requirements
+
+### Mandatory QA bundle
+
+- `C1`, `C3`
+- `L3`, `L4`
+- one expand/stop UI dump
+- one debug `autoreply on ...` receiver smoke proving it routes through the normal monitor flow
+
+### Early smoke evidence
+
+- UI dump after controller extraction still showed `Monitoring: Mom`; expanded state rendered `Mom` + `Stop`
+- tapping `Stop` still disabled auto-reply and cleared the shell state
+- debug `autoreply on mom` no longer directly injects a ghost monitor; it is rewritten to `monitor mom on WhatsApp` and follows the same in-app permission/task flow as the real product path
+
 ## Phase 3 — Permission / Accessibility Coordinator
 
 ### Status
@@ -332,6 +380,7 @@ Introduce a coordinator/repository that distinguishes:
 - `K1-K6`
 - `J4`
 - `L5`, `L5-b` when external sender is available
+- Telegram monitor incoming-message cases only count when an external sender path (second account or bot) is available
 
 ### Early smoke evidence
 

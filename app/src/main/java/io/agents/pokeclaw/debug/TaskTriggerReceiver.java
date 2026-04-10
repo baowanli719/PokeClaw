@@ -38,15 +38,13 @@ public class TaskTriggerReceiver extends BroadcastReceiver {
         if (task.startsWith("autoreply ")) {
             String cmd = task.substring(10).trim();
             if (cmd.equals("off")) {
-                io.agents.pokeclaw.service.AutoReplyManager.getInstance().setEnabled(false);
+                io.agents.pokeclaw.service.AutoReplyManager.getInstance().stopAll();
                 XLog.i(TAG, "Auto-reply disabled");
             } else if (cmd.startsWith("on ")) {
                 String contact = cmd.substring(3).trim();
-                io.agents.pokeclaw.service.AutoReplyManager.getInstance().addContact(contact);
-                io.agents.pokeclaw.service.AutoReplyManager.getInstance().setEnabled(true);
-                XLog.i(TAG, "Auto-reply enabled for: " + contact);
+                task = "monitor " + contact + " on WhatsApp";
+                XLog.i(TAG, "Rewriting debug auto-reply command to task flow: " + task);
             }
-            return;
         }
 
         // Launch ComposeChatActivity with task extra — this always works
