@@ -125,8 +125,9 @@ fun ChatScreen(
     var prefillIsTask by remember { mutableStateOf(false) }
     // Task mode state — lifted here so content area can react
     var isTaskMode by remember { mutableStateOf(false) }
-    // Local/Cloud tab — controls UI presentation AND triggers model switch
-    // No LaunchedEffect sync — tab is user-controlled, not model-controlled
+    // Local/Cloud tab — controls UI presentation AND triggers model switch.
+    // Keep the tab aligned with the actual active model so returning from
+    // Settings/model changes cannot leave the toolbar UI out of sync.
     var selectedTab by remember { mutableStateOf(if (isLocalModel) "local" else "cloud") }
     val isLocalUI = selectedTab == "local"
     // Skill dialog and activation states
@@ -142,6 +143,10 @@ fun ChatScreen(
             kotlinx.coroutines.delay(2000)
             activatingSkill = null
         }
+    }
+
+    LaunchedEffect(isLocalModel) {
+        selectedTab = if (isLocalModel) "local" else "cloud"
     }
 
     ModalNavigationDrawer(
@@ -2323,4 +2328,3 @@ private fun ActiveTaskBar(
         }
     }
 }
-

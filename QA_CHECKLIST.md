@@ -748,6 +748,10 @@ Format: `[date] [status] [test-id] description`
 [2026-04-10] [FIXED]   L1-v9  Cloud send-message auto-return now preserves the existing conversation instead of dropping the user into a fresh session
 [2026-04-10] [PASS]    B1/L1/Q7-7  Cloud task "send yo to girlfriend on WhatsApp" → `send_message` opens WhatsApp and succeeds → auto-return keeps user in `ComposeChatActivity` → same conversation still shows prior messages plus new user bubble + result bubble `Sent 'yo' to girlfriend on WhatsApp.`
 [2026-04-10] [FIXED]   A11Y-r1  Accessibility-dependent tools no longer fail immediately during transient service rebinds; they now wait for the enabled service to reconnect before hard-failing
+[2026-04-10] [PASS]    H2/H2-b/H2-c  Models screen keyboard safety: API key, Custom Base URL, and Custom Model Name all stay fully visible when IME opens; focused field scrolls into view
+[2026-04-10] [FIXED]   P1-4/Q1-r1  Chat toolbar tab state now re-syncs to the actual active model after Settings/model changes, preventing Cloud placeholder/quick-tasks from drifting out of sync with a Local model status (and vice versa)
+[2026-04-10] [PASS]    P1-4/P2-1/P2-4/Q1-1/Q6-2  Tap `Local` → model status switches to `● Gemma 4 E2B — 2.6GB · CPU`, local reasoning-first quick tasks render, Chat/Task toggle appears, placeholder becomes `Chat with local AI...`
+[2026-04-10] [PASS]    P1-4/P2-5/Q1-2/Q6-3  Tap `Cloud` → model status switches back to `● gpt-4.1 · Cloud`, cloud-only quick tasks return, Chat/Task toggle hides, placeholder becomes `Chat or give a task...`
 [2026-04-09] [BLOCKED] L5/L5-b  Incoming WhatsApp notification auto-reply while staying in app requires a second sender device / live external message source
 [2026-04-09] [FIXED]   F2-v9 Stop button slow — added Future.cancel(true) to interrupt agent thread + abort HTTP call immediately (was: flag-only, waited for LLM round to finish)
 [2026-04-09] [ISSUE]   F2-v9 Stop → return to same session — after stopping task, should return to the SAME chat session, not open new one
@@ -765,5 +769,6 @@ Format: `[date] [status] [test-id] description`
 | K2-a | ~~Accessibility status row shows `Disabled` while Android Accessibility page has `Use PokeClaw` ON~~ | Fixed 2026-04-10: app Settings now reads `enabled_accessibility_services` via `isEnabledInSettings()` | Fixed |
 | K3-b | ~~Accessibility enable flow does not foreground PokeClaw after system toggle ON~~ | Fixed 2026-04-10: pending return only arms for a real disabled→enabled flow, then unwinds Settings and foregrounds app | Fixed |
 | Q6-7 | ~~Cloud tab tasks can reuse stale Local agent config after a model switch~~ | Fixed 2026-04-10: task agent config now syncs on model switch and immediately before `startTask()` | Fixed |
+| Q1-r1 | ~~Toolbar tab UI can drift out of sync with the actual active model after Settings/model changes~~ | Fixed 2026-04-10: `ChatScreen` now re-syncs `selectedTab` from `isLocalModel`, so placeholder/quick-tasks/toggle follow the true active model again | Fixed |
 | L1-v9 | ~~Auto-return after task completion can reopen a fresh chat state instead of preserving the active conversation~~ | Fixed 2026-04-10: same conversation remained visible after Cloud `send_message` auto-return, with result appended in place | Fixed |
 | A11Y-r1 | Accessibility-dependent tools can false-fail during transient service rebinds | Fixed 2026-04-10: tools now wait for an enabled service to reconnect before returning `Accessibility service is not running` | Fixed |
