@@ -32,7 +32,7 @@
     "description": "On-device AI that autonomously controls your Android phone using Gemma 4. No cloud, no API keys.",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "downloadUrl": "https://github.com/agents-io/PokeClaw/releases/latest",
-    "softwareVersion": "0.5.0",
+    "softwareVersion": "0.5.1",
     "license": "https://opensource.org/licenses/Apache-2.0",
     "author": { "@type": "Person", "name": "ithiria894", "url": "https://github.com/ithiria894" }
   }
@@ -490,6 +490,28 @@
     <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-muted);">Interactive prototype — tap buttons, switch tabs, explore screens</p>
   </section>
 
+  <!-- ─── DEMO VIDEOS ─── -->
+  <section class="demo-section">
+    <div class="demo-inner">
+      <div class="section-header">
+        <h2>See Gemma 4 Control a Phone</h2>
+      </div>
+      <div class="demo-hardware-note">
+        <strong>Note:</strong> These demos were recorded on a CPU-only phone with no GPU acceleration. On phones with GPU (Pixel 8+, Galaxy S24, Dimensity 9200+), performance is significantly faster. First inference warmup is ~45s on CPU, much less on GPU.
+      </div>
+      <div class="demo-grid">
+        <div class="demo-card">
+          <video src="hi-demo.mp4" autoplay muted loop playsinline controls preload="metadata"></video>
+          <div class="demo-card-title">Send a WhatsApp Message via AI</div>
+        </div>
+        <div class="demo-card">
+          <video src="monitor-demo.mp4" autoplay muted loop playsinline controls preload="metadata"></video>
+          <div class="demo-card-title">Automatic Reply Mode</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ─── HOW IT WORKS ─── -->
   <section class="how-it-works">
     <div class="section-header">
@@ -544,28 +566,6 @@
         <h3>Control Any App</h3>
         <p>Send messages, open settings, navigate tabs, dismiss popups. If you can tap it, PokeClaw can tap it. Uses real Android Accessibility, not screenshots.</p>
         <span class="usecase-tag tag-both">Local + Cloud</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- ─── DEMO SECTION ─── -->
-  <section class="demo-section">
-    <div class="demo-inner">
-      <div class="section-header">
-        <h2>See Gemma 4 Control a Phone</h2>
-      </div>
-      <div class="demo-hardware-note">
-        <strong>Note:</strong> These demos were recorded on a CPU-only phone with no GPU acceleration. On phones with GPU (Pixel 8+, Galaxy S24, Dimensity 9200+), performance is significantly faster. First inference warmup is ~45s on CPU, much less on GPU.
-      </div>
-      <div class="demo-grid">
-        <div class="demo-card">
-          <video src="hi-demo.mp4" autoplay muted loop playsinline controls preload="metadata"></video>
-          <div class="demo-card-title">Send a WhatsApp Message via AI</div>
-        </div>
-        <div class="demo-card">
-          <video src="monitor-demo.mp4" autoplay muted loop playsinline controls preload="metadata"></video>
-          <div class="demo-card-title">Automatic Reply Mode</div>
-        </div>
       </div>
     </div>
   </section>
