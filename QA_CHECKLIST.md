@@ -394,6 +394,10 @@ Design principle: User perspective. INFO tasks → report actual data. ACTION ta
 - [ ] **S7. "Open Reddit and search for pokeclaw"**: opens Reddit → types search → results (M51 verified)
 - [ ] **S8. "Write an email saying I'll be late"**: opens Gmail → compose draft ready with Subject/Body filled; recipient stays blank unless the task names one; does NOT send (M8/M19 verified)
 
+Current Pixel 8 Pro status on 2026-04-10:
+- `S2`, `S3`, `S5`, `S6`, `S7`, and `S8` are verified pass on the latest hardening branch.
+- `S1` is currently environment-blocked by a foreground YouTube runtime permission dialog (`GrantPermissionsActivity`), not by a deterministic search-flow failure in PokeClaw.
+
 ## P. UI — v9 Design Verification
 
 Reference prototype: `/home/nicole/MyGithub/PokeClaw/prototype/dashboard-v9.html`
@@ -790,6 +794,14 @@ Format: `[date] [status] [test-id] description`
 [2026-04-10] [PASS]    LQ7-LQ10/LQ12/LQ13  Local deterministic quick-task sweep: installed apps, phone temperature, bluetooth state, battery, storage, and Android version all returned correct device data through `get_installed_apps` / `get_device_info`, with no stale-session or routing regressions
 [2026-04-10] [PASS]    LQ6/LQ11  Contact-specific local quick tasks still route the correct tools (`send_message`, `make_call`) and fail gracefully when `Mom` does not exist on this device; treat literal send/call success as env-blocked coverage, not a product failure
 [2026-04-10] [PASS]    P3-7/P3-8/Q4-1  Local UI quick-task E2E: tap visible `Check my battery and tell me if I need to charge` card → input prefilled → Local task send routes through `provider=LOCAL / gemma4-e2b` → `get_device_info(category=battery)` → response bubble `The battery is at 100% and is charging. You do not need to charge.` appears with local model tag `Gemma 4 E2B — 2.6GB`; input resets to task placeholder `Describe a phone task...`
+[2026-04-10] [FIXED]   QA-r1  `scripts/e2e-quick-tasks.sh` now classifies `onSystemDialogBlocked`, text-only completions with no tool calls, `Task cancelled`, and `Task stopped: budget limit reached ...` correctly; it no longer misreports the YouTube permission dialog as a generic timeout
+[2026-04-10] [FIXED]   Bgt-1  Existing installs could stay pinned to the legacy 100K / $0.50 task budget even after code defaults increased. `TaskBudget` now migrates untouched legacy defaults to 250K / $1.00 once, while preserving user-custom budgets; Settings budget UI now exposes `250K` explicitly and snaps to the nearest current value
+[2026-04-10] [PASS]    S2/M32  Cloud task `Install Telegram from Play Store` → Play Store path completed without budget stop; on this device the agent correctly recognized Telegram was already installed and finished in 10s
+[2026-04-10] [PASS]    S3/M20  Cloud task `Check whats trending on Twitter and tell me` → `open_app(com.twitter.android)` → inspect current feed/trending content → summarize visible topics; completed in 30s with no task-budget stop
+[2026-04-10] [BLOCKED] S1/M1-b  Cloud task `Search YouTube for funny cat fails` is currently blocked by Android's foreground permission controller (`GrantPermissionsActivity`) over YouTube; PokeClaw surfaces this as `system dialog blocked foreground automation` instead of looping or timing out
+[2026-04-10] [PASS]    S5/M33  Cloud task `Copy the latest email subject and Google it` → `get_notifications` → `clipboard(set)` → `open_app(com.android.chrome)` → search in Chrome → screenshot/search-results visible → `finish`; after legacy-budget migration this completed in 15 rounds / 110.2K tokens instead of hard-stopping at the old 100K ceiling
+[2026-04-10] [PASS]    S7/M51  Committed-state rerun `Open Reddit and search for pokeclaw` → `open_app(com.reddit.frontpage)` → `input_text(pokeclaw)` → results visible → `finish`; completed in 12 rounds / 91.9K tokens on the latest hardening branch
+[2026-04-10] [PASS]    Cloud quick-task sweep (effective final) on branch `hardening/behavior-safe-2026-04-09` @ `a0a88ab`: `18 PASS / 0 FAIL / 2 BLOCKED / 0 TIMEOUT / 20 TOTAL`. Blocked items are environment-driven (`S1` YouTube permission dialog, `Call Mom` missing contact). Base sweep log: `/tmp/pokeclaw-cloud-quick-tasks-20260410-full.log`; `S5` was rerun after the budget migration and passed at 110.2K tokens
 ```
 
 ### Bugs Found During v9 QA
@@ -805,3 +817,4 @@ Format: `[date] [status] [test-id] description`
 | L1-v9 | ~~Auto-return after task completion can reopen a fresh chat state instead of preserving the active conversation~~ | Fixed 2026-04-10: same conversation remained visible after Cloud `send_message` auto-return, with result appended in place | Fixed |
 | A11Y-r1 | Accessibility-dependent tools can false-fail during transient service rebinds | Fixed 2026-04-10: tools now wait for an enabled service to reconnect before returning `Accessibility service is not running` | Fixed |
 | Q7-local | ~~Stopping a Local task could crash with native `SIGSEGV` / `session already exists` race~~ | Fixed 2026-04-10: local cancel no longer interrupts LiteRT mid-send, and UI cleanup waits until the task-side client has closed cleanly | Fixed |
+| Bgt-1 | Existing installs could stay pinned to the legacy task budget even after code defaults increased | Fixed 2026-04-10: `TaskBudget` now one-time migrates untouched 100K / $0.50 legacy defaults to 250K / $1.00, while preserving explicit user overrides and exposing `250K` in Settings | Fixed |
