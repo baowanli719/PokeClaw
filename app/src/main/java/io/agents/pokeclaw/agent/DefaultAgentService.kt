@@ -441,6 +441,8 @@ class DefaultAgentService : AgentService {
             config.systemPrompt
         }
 
+        val inAppSearchGuard = InAppSearchGuard.fromTask(userPrompt)
+
         // For local LLM, inject matching playbook into system prompt
         val playbookSection = if (config.provider == LlmProvider.LOCAL) {
             val matched = PlaybookManager.match(userPrompt)
@@ -450,7 +452,12 @@ class DefaultAgentService : AgentService {
             } else ""
         } else ""
 
-        val fullSystemPrompt = basePrompt + playbookSection + buildDeviceContext()
+        val fullSystemPrompt = buildString {
+            append(basePrompt)
+            append(playbookSection)
+            append(inAppSearchGuard.buildPromptSection())
+            append(buildDeviceContext())
+        }
 
         val messages = mutableListOf<ChatMessage>()
         messages.add(SystemMessage.from(fullSystemPrompt))
@@ -584,7 +591,11 @@ class DefaultAgentService : AgentService {
 
             // Push thinking content in non-streaming mode
             if (!config.streaming && !llmResponse.text.isNullOrEmpty()) {
-                callback.onContent(iterations, llmResponse.text)
+                val suppressHallucinatedCompletion =
+                    !llmResponse.hasToolExecutionRequests() && inAppSearchGuard.shouldBlockTextOnlyCompletion()
+                if (!suppressHallucinatedCompletion) {
+                    callback.onContent(iterations, llmResponse.text)
+                }
             }
 
             // No tool calls in this response — LLM chose to respond with text only.
@@ -592,6 +603,12 @@ class DefaultAgentService : AgentService {
             if (!llmResponse.hasToolExecutionRequests()) {
                 val responseText = llmResponse.text ?: ""
                 if (responseText.isNotEmpty()) {
+                    if (inAppSearchGuard.shouldBlockTextOnlyCompletion()) {
+                        val correction = inAppSearchGuard.buildCompletionCorrection()
+                        XLog.i(TAG, "InAppSearchGuard blocked text-only completion for '$userPrompt'")
+                        messages.add(UserMessage.from(correction))
+                        continue
+                    }
                     XLog.i(TAG, "runAgentLoop: text-only response, completing")
                     callback.onComplete(iterations, responseText, totalTokens, actualModelName)
                     return
@@ -615,7 +632,6 @@ class DefaultAgentService : AgentService {
                 val toolName = toolRequest.name() ?: ""
                 val displayName = ToolRegistry.getInstance().getDisplayName(toolName)
                 val toolArgs = toolRequest.arguments() ?: "{}"
-                callback.onToolCall(iterations, toolName, displayName, toolArgs)
 
                 // Parse parameters
                 val mapType = object : TypeToken<Map<String, Any>>() {}.type
@@ -627,9 +643,36 @@ class DefaultAgentService : AgentService {
                 }
                 if (params == null) params = HashMap()
 
+                val blockedFinish = if (toolName == "finish") {
+                    val screenInfo = try {
+                        ToolRegistry.getInstance()
+                            .getTool("get_screen_info")
+                            ?.execute(emptyMap())
+                            ?.takeIf { it.isSuccess }
+                            ?.data
+                    } catch (_: Exception) {
+                        null
+                    }
+                    inAppSearchGuard.maybeBlockFinish(screenInfo)
+                } else null
+                if (blockedFinish != null) {
+                    val blockedResult = ToolResult.error(blockedFinish)
+                    XLog.i(TAG, "InAppSearchGuard blocked premature finish for '$userPrompt'")
+                    callback.onToolCall(iterations, toolName, displayName, toolArgs)
+                    callback.onToolResult(iterations, toolName, displayName, params.toString(), blockedResult)
+                    messages.add(ToolExecutionResultMessage.from(toolRequest, GSON.toJson(blockedResult)))
+                    messages.add(UserMessage.from(blockedFinish))
+                    continue
+                }
+
+                callback.onToolCall(iterations, toolName, displayName, toolArgs)
+
                 val result = ToolRegistry.getInstance().executeTool(toolName, params)
                 val paramsString = if (params.isEmpty()) "" else params.toString()
                 callback.onToolResult(iterations, toolName, displayName, paramsString, result)
+                if (result.isSuccess) {
+                    inAppSearchGuard.recordSuccessfulTool(toolName, params)
+                }
 
                 // System dialog blocking detected → notify user and stop task
                 if (!result.isSuccess && result.error == GetScreenInfoTool.SYSTEM_DIALOG_BLOCKED) {
