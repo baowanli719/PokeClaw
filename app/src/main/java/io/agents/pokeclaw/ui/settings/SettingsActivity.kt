@@ -111,7 +111,7 @@ class SettingsActivity : BaseActivity() {
     }
 
     private fun refreshPermissions() {
-        permAccessibility?.setTrailingText(if (ClawAccessibilityService.isRunning()) "Enabled" else "Disabled")
+        permAccessibility?.setTrailingText(if (ClawAccessibilityService.isEnabledInSettings(this)) "Enabled" else "Disabled")
         permNotification?.setTrailingText(if (ForegroundService.isRunning()) "Enabled" else "Disabled")
         permNotifAccess?.setTrailingText(if (io.agents.pokeclaw.service.ClawNotificationListener.isConnected()) "Connected" else "Disabled")
         permOverlay?.setTrailingText(if (Settings.canDrawOverlays(this)) "Enabled" else "Disabled")
@@ -168,6 +168,11 @@ class SettingsActivity : BaseActivity() {
             leadingIcon = R.drawable.ic_accessibility,
             title = getString(R.string.home_card_accessibility_title),
             onClick = {
+                if (ClawAccessibilityService.isEnabledInSettings(this)) {
+                    KVUtils.clearPendingAccessibilityReturn()
+                } else {
+                    KVUtils.markPendingAccessibilityReturn()
+                }
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 Toast.makeText(this, R.string.home_enable_accessibility, Toast.LENGTH_LONG).show()
             },

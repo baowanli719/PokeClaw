@@ -13,7 +13,10 @@ import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import io.agents.pokeclaw.utils.XLog;
+import io.agents.pokeclaw.utils.KVUtils;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -89,14 +92,7 @@ public class ClawAccessibilityService extends AccessibilityService {
         super.onServiceConnected();
         instance = this;
         XLog.i(TAG, "Accessibility service connected");
-        // Auto-return to app Settings page so user can see the updated status
-        try {
-            android.content.Intent intent = new android.content.Intent(this, io.agents.pokeclaw.ui.settings.SettingsActivity.class);
-            intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            startActivity(intent);
-        } catch (Exception e) {
-            XLog.w(TAG, "Could not bring app to foreground after service connected", e);
-        }
+        maybeReturnToAppAfterPermissionFlow();
     }
 
     @Override
@@ -123,6 +119,48 @@ public class ClawAccessibilityService extends AccessibilityService {
         super.onDestroy();
         instance = null;
         XLog.i(TAG, "Accessibility service destroyed");
+    }
+
+    /**
+     * Android Settings keeps its own back stack during the Accessibility enable flow.
+     * When the user came here from PokeClaw Settings, unwind that stack once, then
+     * explicitly surface the app Settings screen again.
+     */
+    private void maybeReturnToAppAfterPermissionFlow() {
+        boolean pendingReturn;
+        try {
+            pendingReturn = KVUtils.INSTANCE.consumePendingAccessibilityReturn(120_000L);
+        } catch (Exception e) {
+            XLog.w(TAG, "Failed to read pending accessibility return flag", e);
+            return;
+        }
+        if (!pendingReturn) {
+            return;
+        }
+
+        XLog.i(TAG, "Completing pending accessibility permission return");
+        Handler mainHandler = new Handler(Looper.getMainLooper());
+
+        mainHandler.postDelayed(() -> {
+            try {
+                performGlobalAction(GLOBAL_ACTION_BACK);
+            } catch (Exception e) {
+                XLog.w(TAG, "Failed to exit accessibility detail screen", e);
+            }
+        }, 250);
+
+        mainHandler.postDelayed(() -> {
+            try {
+                Intent intent = new Intent(this, io.agents.pokeclaw.ui.settings.SettingsActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+            } catch (Exception e) {
+                XLog.w(TAG, "Could not bring app to foreground after service connected", e);
+            }
+        }, 700);
     }
 
     // ======================== Gesture Operations ========================
