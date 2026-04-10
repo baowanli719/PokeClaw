@@ -6,17 +6,15 @@
   <img src="option.png" width="600" />
 </p>
 
-# PokeClaw (PocketClaw) - A Pocket Versoin Inspired By OpenClaw
+# PokeClaw (PocketClaw) - A Pocket Version Inspired By OpenClaw
 
-Gemma 4 launched 4 days ago.  
+PokeClaw turns an Android phone into an AI-operated device.
 
-I wanted to know if it could actually drive a phone.
-
-So I pulled two all-nighters and built it.
+It runs Gemma 4 on-device for private phone control, and it also supports optional cloud models when you want stronger reasoning for harder tasks.
 
 As far as I know, this is the first working app built on Gemma 4 that can autonomously control an Android phone.
 
-The entire pipeline is a closed loop inside your device. No Wifi needed,No monthly billing for the API keys.
+In Local mode, the entire loop stays inside your device. No account. No API key. No monthly bill.
 
 
 
@@ -24,20 +22,19 @@ The entire pipeline is a closed loop inside your device. No Wifi needed,No month
 Everyone else:  Phone → Internet → Cloud API → Internet → Phone
                        💳Credit card needed, API key required. Monthly bill attached.
 
-PokeClaw:       Phone → LLM → Phone
+PokeClaw local: Phone → LLM → Phone
                        That's it. No internet. No API key. No bill.
 ```
 **AI controls your phone. And it never leaves your phone.**
 
-This is a 2-day open-source prototype, not a polished consumer app.
-If it works on your device, amazing. If it breaks, Issues and fix proposals are welcome.
+PokeClaw is open-source, ships fast, and already handles real chat, task, and automation flows on Android.
 
-Monitor Girlfriend's whatsapp and auto reply(yea the local llm isnt smart enough to not make gf angry lol):
+Monitor a WhatsApp contact and auto-reply:
 
 
 https://github.com/user-attachments/assets/4cb4c2bf-90e1-4391-8e08-9d6113634a41
 
-Monitor Mom's whatsapp and auto reply:
+Context-aware WhatsApp auto-reply:
 
 https://github.com/user-attachments/assets/5a43d4d5-458a-4eea-a0a5-58d113255741
 
@@ -50,15 +47,13 @@ https://github.com/user-attachments/assets/5c2966c5-04e6-4b22-8d66-11915ae62096
 https://github.com/user-attachments/assets/89999dd8-a1be-49ad-9419-60c2b38f6374
 
 
-> **Why is the "hi" demo slow?** Recorded on a budget Android phone (I'm literally too broke to buy a proper one, got this just to demo the app lol) with CPU-only inference, no GPU, no NPU. Running Gemma 4 E2B on pure CPU takes about 45 seconds to warm up — started at several minutes, we optimized the engine initialization and session handoff to squeeze it down this far. If your phone actually has a decent chip it's **way faster**:
+> **Why is the "hi" demo slow?** That clip was recorded on a CPU-only Android device with no usable GPU or NPU path. Running Gemma 4 E2B on pure CPU takes about 45 seconds to warm up. On stronger phones it is much faster:
 > - **Google Tensor G3/G4** (Pixel 8, Pixel 9)
 > - **Snapdragon 8 Gen 2/3** (Galaxy S24, OnePlus 12)
 > - **Dimensity 9200/9300** (recent MediaTek flagships)
 > - **Snapdragon 7+ Gen 2+** (mid-range with GPU)
 >
 > On these devices, warmup drops to seconds. Same model, better hardware.
->
-> That said, the fact that a 2.3B model can autonomously control a phone running purely on CPU is already pretty impressive. GPU just makes it faster.
 
 
 
@@ -69,15 +64,13 @@ https://github.com/user-attachments/assets/89999dd8-a1be-49ad-9419-60c2b38f6374
 
 ## The Story
 
-I'm a solo developer. When Gemma 4 dropped on April 2nd with native tool calling on LiteRT-LM, I pulled two all-nighters and built this from scratch. This is the first local LLM that can run on a phone and is capable enough to handle genuinely complex tasks — having conversations, auto-replying to your mom based on context, navigating apps autonomously. That's exciting to me.
+I'm building this solo. When Gemma 4 landed with native tool calling on LiteRT-LM, I wanted to know whether a phone could become a real on-device agent instead of just another chatbot. PokeClaw is the result.
 
-It's not perfect. Local LLMs are not as smart as cloud models, and there are plenty of rough edges. Hardware is what it is — we can't make your CPU faster. But on the software side, we're actively improving the architecture, the tool system, and the overall design. Cloud LLM support is coming as an optional feature for people who want more power.
+The interesting part is not just chatting with a local model. The interesting part is getting a local model to read the screen, choose tools, operate apps, keep task state, and finish real phone workflows. That is exactly what this project is built for.
 
-And it's **completely free**. No API keys that bill you every month. No subscription. No usage limits. The model runs on your hardware and costs you nothing.
+PokeClaw already supports fully on-device automation with Gemma 4 and optional cloud models for stronger task execution. The current focus is broader device support, more generic skills, more local model options, and a cleaner public release path.
 
-We're living through a historic shift. Local LLMs are now smart enough to actually do useful work on a phone. That wasn't true 6 months ago. On-device models are getting smarter fast, and we're hoping it won't be long before they close the gap with cloud models entirely. When that happens, PokeClaw is ready.
-
-**This project has a lot of issues. That's expected. Please [open them](https://github.com/agents-io/PokeClaw/issues).** Every bug report makes this better.
+**If you hit something interesting, [open an issue](https://github.com/agents-io/PokeClaw/issues).** Real device reports are how this gets better fast.
 
 ## Screenshots
 
@@ -91,6 +84,34 @@ We're living through a historic shift. Local LLMs are now smart enough to actual
 ## What it does
 
 The model picks the right tool, fills in the parameters, and executes. You don't configure anything per-app. It just reads the screen and acts.
+
+## Proven Quick Tasks
+
+These are tasks we have already run end-to-end during on-device QA.
+
+### Local mode
+
+- Summarize notifications
+- Explain clipboard contents
+- Analyze storage / apps and suggest cleanup targets
+- Check whether the battery needs charging
+- Report installed apps
+- Report phone temperature
+- Report Bluetooth state
+- Report battery, storage, and Android version
+- Run quick-task cards directly from the UI and return the result in chat
+- Route contact-specific send / call tasks correctly and fail cleanly when the contact does not exist on the device
+
+### Cloud mode
+
+- Send a WhatsApp message and auto-return to the same PokeClaw conversation
+- Search inside YouTube in the real app
+- Check what is trending on Twitter / X and summarize it
+- Install or open Telegram from Play Store
+- Open Reddit and search for `pokeclaw`
+- Copy the latest email subject and Google it
+- Draft an email saying you will be late
+- Preserve task state and session history across cross-app execution and return
 
 ## How it works
 
@@ -117,7 +138,7 @@ These tools are generic — they work with any app, any contact, any language. T
 
 ## Tools + Skills
 
-A 2.3B on-device model is not GPT-4. It follows instructions well, but it's not great at figuring out *which* tools to use on its own. So we give it a playbook.
+Small on-device models get dramatically better when you give them a strong playbook. So we give PokeClaw reusable skills on top of generic tools.
 
 The auto-reply feature is a good example. It doesn't work by magic — there's a predefined workflow behind it: open the chat → read all visible messages on screen → generate a context-aware reply → send it → go back to home. The model follows this recipe step by step. Every tool in that chain is generic: `open_app` works with any app, `read_screen` works on any screen, `send_message` works with any contact. The workflow just tells the model which tools to use and in what order.
 
@@ -134,7 +155,7 @@ Each skill is just a combination of the same generic tools (`open_app`, `tap`, `
 
 Both are designed to be extensible. We're building the first 8-10 skills as built-in defaults. If the system works well, we'll open it up for the community to create and share their own tools and skills. You know your phone better than we do — you should be able to teach it new tricks.
 
-As on-device models get smarter, the skills become less necessary. A future 7B or 13B model might figure out the right workflow on its own. Until then, skills are how we get reliable automation out of a small local model. Think of it as training wheels that the model will eventually outgrow.
+As on-device models get smarter, more of this can become free-form. Right now, skills are how we get reliable automation out of a small local model while keeping the tool layer generic.
 
 🌐 **Landing Page:** https://agents-io.github.io/PokeClaw/
 
@@ -155,16 +176,17 @@ As on-device models get smarter, the skills become less necessary. A future 7B o
 | **GPU** | Not required (CPU works) | Tensor G3/G4, Snapdragon 8 Gen 2+, Dimensity 9200+ |
 | **Root** | Not required | Not required |
 
-> ⚠️ 8 GB is the minimum but may still crash on some devices depending on what else is running. 12 GB+ is comfortable. If the app crashes during model loading, close other apps and try again. If it still crashes, your phone doesn't have enough free RAM for a 2.3B model. Hardware limitation, not a bug.
+> ⚠️ 8 GB gets you in the door. 12 GB+ is the sweet spot for the built-in Gemma 4 local models, especially if you want smoother multitasking and faster model bring-up.
 
 ## Quick start
 
 1. Install the APK
-2. Grant accessibility permission when prompted
-3. The model downloads automatically on first launch (~2.6 GB)
-4. Switch to Task mode, type what you want
+2. Grant Accessibility permission when prompted
+3. If you want background monitor flows, also grant Notification Access
+4. In Local mode, the model downloads on first local launch (~2.6 GB)
+5. Switch to Chat or Task mode and start using it
 
-No API keys. No cloud config. No account.
+Local mode needs no account and no API key. Cloud mode is optional.
 
 ## Roadmap
 
@@ -201,15 +223,13 @@ If you want something added, please open an issue. The roadmap above is intentio
 
 ## Help Wanted
 
-This is the first local LLM that can autonomously control a phone. Built in two all-nighters on a model that dropped days ago. It's already pretty impressive that this works at all, and it's only going to get better as on-device models improve.
-
-That said, there are a LOT of issues. That's expected for something this new. If you run into bugs, weird behavior, or have ideas:
+PokeClaw is moving fast, and the roadmap is being shaped directly by real device reports, feature requests, and QA results. If you want to help push local phone agents forward:
 
 - ⭐ **[Star this repo](https://github.com/agents-io/PokeClaw)** if you think local AI phone control matters
-- 🐛 **[Open an issue](https://github.com/agents-io/PokeClaw/issues)** when something breaks (it will)
+- 🐛 **[Open an issue](https://github.com/agents-io/PokeClaw/issues)** when you hit a bug or want a feature
 - 🍴 **[Fork it](https://github.com/agents-io/PokeClaw/fork)** and build on it
 
-Every issue makes this better. Every star helps more people find it.
+Every star helps more people find the project. Every issue helps shape the next release.
 
 ## Changelog
 
