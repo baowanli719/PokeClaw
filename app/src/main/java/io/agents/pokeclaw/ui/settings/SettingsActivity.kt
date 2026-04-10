@@ -304,15 +304,13 @@ class SettingsActivity : BaseActivity() {
         menuItems[SettingsViewModel.MenuAction.LLM_CONFIG.name]?.setLeadingIconColor(getColor(R.color.colorTextPrimary))
 
         // Task Budget (inline in model group)
-        val budgetTokens = io.agents.pokeclaw.agent.TaskBudget.getMaxTokens()
-        val budgetCost = io.agents.pokeclaw.agent.TaskBudget.getMaxCost()
         modelGroup.addMenuItem(
             leadingIcon = android.R.drawable.ic_menu_recent_history,
             title = "Task Budget",
             onClick = { showBudgetDialog() },
             showDivider = false
         ).apply {
-            setTrailingText("${io.agents.pokeclaw.agent.ModelPricing.formatTokens(budgetTokens)} / ${String.format("$%.2f", budgetCost)}")
+            setTrailingText(io.agents.pokeclaw.agent.TaskBudget.describeCurrentBudget())
         }
 
         // Appearance
@@ -512,8 +510,8 @@ class SettingsActivity : BaseActivity() {
     }
 
     private fun showBudgetDialog() {
-        val currentTokens = io.agents.pokeclaw.agent.TaskBudget.getMaxTokens()
-        val currentCost = io.agents.pokeclaw.agent.TaskBudget.getMaxCost()
+        val currentTokens = io.agents.pokeclaw.agent.TaskBudget.getConfiguredMaxTokens()
+        val currentCost = io.agents.pokeclaw.agent.TaskBudget.getConfiguredMaxCost()
 
         val layout = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -526,11 +524,16 @@ class SettingsActivity : BaseActivity() {
         }
         layout.addView(tokenLabel)
 
-        val tokenOptions = arrayOf("10K", "50K", "100K", "200K", "250K", "500K")
-        val tokenValues = intArrayOf(10_000, 50_000, 100_000, 200_000, 250_000, 500_000)
-        val selectedTokenIndex = tokenValues.indexOfFirst { it == currentTokens }.takeIf { it >= 0 }
-            ?: tokenValues.indices.minByOrNull { kotlin.math.abs(tokenValues[it] - currentTokens) }
-            ?: 2
+        val tokenOptions = arrayOf("Unlimited", "10K", "50K", "100K", "200K", "250K", "500K")
+        val tokenValues = arrayOf<Int?>(null, 10_000, 50_000, 100_000, 200_000, 250_000, 500_000)
+        val selectedTokenIndex = when (currentTokens) {
+            null -> 0
+            else -> tokenValues.indexOfFirst { it == currentTokens }.takeIf { it >= 0 }
+                ?: tokenValues.indices
+                    .filter { tokenValues[it] != null }
+                    .minByOrNull { kotlin.math.abs((tokenValues[it] ?: 0) - currentTokens) }
+                ?: 0
+        }
 
         val tokenSpinner = android.widget.Spinner(this).apply {
             adapter = android.widget.ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_dropdown_item, tokenOptions)
@@ -546,7 +549,8 @@ class SettingsActivity : BaseActivity() {
 
         val costInput = android.widget.EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-            setText(String.format("%.2f", currentCost))
+            hint = "Blank = no cost cap"
+            setText(currentCost?.let { String.format("%.2f", it) } ?: "")
             setTextColor(getColor(R.color.colorTextPrimary))
         }
         layout.addView(costInput)
@@ -556,10 +560,19 @@ class SettingsActivity : BaseActivity() {
             .setView(layout)
             .setPositiveButton("Save") { _, _ ->
                 val newTokens = tokenValues[tokenSpinner.selectedItemPosition]
-                val newCost = costInput.text.toString().toDoubleOrNull() ?: currentCost
-                io.agents.pokeclaw.agent.TaskBudget.saveMaxTokens(newTokens)
-                io.agents.pokeclaw.agent.TaskBudget.saveMaxCost(newCost)
-                Toast.makeText(this, "Budget: ${tokenOptions[tokenSpinner.selectedItemPosition]} / \$${String.format("%.2f", newCost)}", Toast.LENGTH_SHORT).show()
+                val newCost = costInput.text.toString().trim().toDoubleOrNull()
+
+                when (newTokens) {
+                    null -> io.agents.pokeclaw.agent.TaskBudget.clearMaxTokens()
+                    else -> io.agents.pokeclaw.agent.TaskBudget.saveMaxTokens(newTokens)
+                }
+                when {
+                    newCost == null || newCost <= 0.0 -> io.agents.pokeclaw.agent.TaskBudget.clearMaxCost()
+                    else -> io.agents.pokeclaw.agent.TaskBudget.saveMaxCost(newCost)
+                }
+
+                val summary = io.agents.pokeclaw.agent.TaskBudget.describeCurrentBudget()
+                Toast.makeText(this, "Budget: $summary", Toast.LENGTH_SHORT).show()
                 recreate()
             }
             .setNegativeButton("Cancel", null)
