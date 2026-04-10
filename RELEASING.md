@@ -63,6 +63,18 @@ git push pokeclaw vX.Y.Z
 
 The GitHub Actions workflow will then create the GitHub Release, upload the signed APK, and attach `SHA256SUMS.txt`.
 
+## Optional: local upgrade smoke test
+
+To verify that the next public build can upgrade in place over the current signed build, create a temporary local build with the same key and a higher version:
+
+```bash
+export POKECLAW_VERSION_CODE=15
+export POKECLAW_VERSION_NAME=0.5.1-upgrade-test
+./gradlew --no-daemon :app:assembleRelease -x lintVitalRelease -x lintVitalAnalyzeRelease -x lintVitalReportRelease
+```
+
+Then install the signed baseline APK first, followed by the higher-version APK with `adb install -r ...`.
+
 ## 4. Known historical limitation
 
 The old public debug-signing path and the later public `v0.5.0` APK were signed with different keys.

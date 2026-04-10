@@ -11,6 +11,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
 }
 
+fun readLocalOrEnvString(key: String, defaultValue: String = ""): String {
+    val props = Properties().apply {
+        File("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    return System.getenv(key)?.takeIf { it.isNotBlank() }
+        ?: props.getProperty(key, defaultValue).trim()
+}
+
+fun readLocalOrEnvInt(key: String, defaultValue: Int): Int {
+    return readLocalOrEnvString(key).toIntOrNull() ?: defaultValue
+}
 
 android {
     namespace = "io.agents.pokeclaw"
@@ -43,8 +54,8 @@ android {
         applicationId = "io.agents.pokeclaw"
         minSdk = 28
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.5.1"
+        versionCode = readLocalOrEnvInt("POKECLAW_VERSION_CODE", 14)
+        versionName = readLocalOrEnvString("POKECLAW_VERSION_NAME", "0.5.1")
         buildConfigField("String", "VERSION_INFO", getVersionGit())
         buildConfigField("String", "APP_ORIGIN", "\"PokeClaw by agents.io | github.com/agents-io/PokeClaw\"")
         buildConfigField("String", "BUILD_FINGERPRINT", "\"${getBuildFingerprint()}\"")
