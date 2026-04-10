@@ -7,4 +7,4 @@
     android:canRetrieveWindowContent="true"
     android:canTakeScreenshot="true"
     android:notificationTimeout="100"
-    android:settingsActivity="io.agents.pokeclaw.ui.home.HomeActivity" />
+    android:settingsActivity="io.agents.pokeclaw.ui.settings.SettingsActivity" />

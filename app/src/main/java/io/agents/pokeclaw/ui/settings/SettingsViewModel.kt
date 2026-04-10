@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.agents.pokeclaw.ClawApplication
 import io.agents.pokeclaw.R
+import io.agents.pokeclaw.agent.llm.ActiveModelMode
+import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.channel.ChannelManager
 import io.agents.pokeclaw.server.ConfigServerManager
 import io.agents.pokeclaw.utils.KVUtils
@@ -54,18 +56,17 @@ class SettingsViewModel : ViewModel() {
 
     /** Show the actual active model, not stale shared key. */
     private fun getActiveModelDisplayName(): String {
-        val provider = KVUtils.getLlmProvider()
+        val config = ModelConfigRepository.snapshot()
         val app = ClawApplication.instance
-        return if (provider == "LOCAL") {
-            val path = KVUtils.getLocalModelPath()
+        return if (config.activeMode == ActiveModelMode.LOCAL) {
+            val path = config.local.modelPath
             if (path.isNotEmpty() && java.io.File(path).exists()) {
-                val modelInfo = io.agents.pokeclaw.agent.llm.LocalModelManager.AVAILABLE_MODELS.find { path.endsWith(it.fileName) }
-                (modelInfo?.displayName ?: java.io.File(path).nameWithoutExtension) + " · Local"
+                config.local.displayName + " · Local"
             } else {
                 app.getString(R.string.common_unconfigured)
             }
         } else {
-            val cloudModel = KVUtils.getDefaultCloudModel().ifEmpty { KVUtils.getLlmModelName() }
+            val cloudModel = config.activeCloud.modelName
             if (cloudModel.isNotEmpty()) {
                 "$cloudModel · Cloud"
             } else {

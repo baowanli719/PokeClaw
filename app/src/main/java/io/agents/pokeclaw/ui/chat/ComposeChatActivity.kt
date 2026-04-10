@@ -16,13 +16,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
-import io.agents.pokeclaw.agent.AgentConfig
 import io.agents.pokeclaw.agent.ModelPricing
-import io.agents.pokeclaw.agent.langchain.http.OkHttpClientBuilderAdapter
 import io.agents.pokeclaw.agent.llm.EngineHolder
 import io.agents.pokeclaw.agent.llm.LlmClient
+import io.agents.pokeclaw.agent.llm.LlmSessionManager
 import io.agents.pokeclaw.agent.llm.LocalModelManager
-import io.agents.pokeclaw.agent.llm.OpenAiLlmClient
+import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.appViewModel
 import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.SystemMessage
@@ -139,7 +138,7 @@ class ComposeChatActivity : ComponentActivity() {
                 inputEnabled = _inputEnabled.value,
                 isDownloading = _isDownloading.value,
                 downloadProgress = _downloadProgress.value,
-                isLocalModel = KVUtils.getLlmProvider() == "LOCAL",
+                isLocalModel = ModelConfigRepository.isLocalActive(),
                 sessionTokens = _sessionTokens.value,
                 sessionCost = _sessionCost.value,
                 onSendChat = { sendChat(it) },
@@ -265,7 +264,7 @@ class ComposeChatActivity : ComponentActivity() {
         permHandler.postDelayed(permPoller, 1000)
 
         // Reload model if changed, or reconnect if needed
-        val currentModelPath = KVUtils.getLocalModelPath()
+        val currentModelPath = ModelConfigRepository.snapshot().local.modelPath
         if (currentModelPath.isNotEmpty() && currentModelPath != loadedModelPath) {
             loadModelIfReady()
         } else if (!isModelReady && engine != null && currentModelPath.isNotEmpty()) {
@@ -344,34 +343,35 @@ class ComposeChatActivity : ComponentActivity() {
     // ==================== MODEL LOADING ====================
 
     private fun loadModelIfReady() {
-        val provider = KVUtils.getLlmProvider()
+        val resolvedConfig = ModelConfigRepository.snapshot()
 
         // Cloud mode: create LlmClient, no local engine needed
-        if (provider != "LOCAL") {
-            val apiKey = KVUtils.getLlmApiKey()
-            val modelName = KVUtils.getLlmModelName()
-            if (apiKey.isNotEmpty() && modelName.isNotEmpty()) {
-                val baseUrl = KVUtils.getLlmBaseUrl().trim().ifEmpty { "https://api.openai.com/v1" }
-                val config = AgentConfig.Builder()
-                    .apiKey(apiKey).baseUrl(baseUrl).modelName(modelName)
-                    .temperature(0.7).build()
+        if (!resolvedConfig.isLocalActive()) {
+            val cloudConfig = resolvedConfig.activeCloud
+            if (cloudConfig.apiKey.isNotEmpty() && cloudConfig.modelName.isNotEmpty()) {
                 val previousModel = cloudModelName
-                cloudClient = OpenAiLlmClient(config, OkHttpClientBuilderAdapter())
-                cloudModelName = modelName
+                cloudClient = LlmSessionManager.createCloudClient(temperature = 0.7)
+                if (cloudClient == null) {
+                    _modelStatus.value = "No model selected"
+                    isModelReady = false
+                    setButtonsEnabled(false)
+                    return
+                }
+                cloudModelName = cloudConfig.modelName
                 if (previousModel == null || cloudHistory.isEmpty()) {
                     // First load or no history — fresh start
                     cloudHistory.clear()
                     cloudHistory.add(SystemMessage.from("You are a helpful AI assistant on an Android phone."))
-                } else if (previousModel != modelName) {
+                } else if (previousModel != cloudConfig.modelName) {
                     // Mid-session model switch — keep history, notify via system message
-                    cloudHistory.add(SystemMessage.from("The user has switched from $previousModel to $modelName. Continue the conversation naturally."))
-                    addSystem("Switched to $modelName")
-                    XLog.i(TAG, "Mid-session model switch: $previousModel → $modelName")
+                    cloudHistory.add(SystemMessage.from("The user has switched from $previousModel to ${cloudConfig.modelName}. Continue the conversation naturally."))
+                    addSystem("Switched to ${cloudConfig.modelName}")
+                    XLog.i(TAG, "Mid-session model switch: $previousModel → ${cloudConfig.modelName}")
                 }
                 isModelReady = true
-                _modelStatus.value = "● $modelName · Cloud"
+                _modelStatus.value = "● ${cloudConfig.modelName} · Cloud"
                 setButtonsEnabled(true)
-                XLog.i(TAG, "Cloud chat ready: $modelName via $baseUrl")
+                XLog.i(TAG, "Cloud chat ready: ${cloudConfig.modelName} via ${cloudConfig.resolvedBaseUrl}")
             } else {
                 _modelStatus.value = "No model selected"
                 isModelReady = false
@@ -382,7 +382,7 @@ class ComposeChatActivity : ComponentActivity() {
 
         // Local mode: load LiteRT engine
         cloudClient = null
-        val modelPath = KVUtils.getLocalModelPath()
+        val modelPath = resolvedConfig.local.modelPath
         XLog.d(TAG, "loadModelIfReady: stored=$modelPath loaded=$loadedModelPath engine=${engine != null}")
 
         // If model changed OR engine not ready, close conversation and let EngineHolder
@@ -427,11 +427,9 @@ class ComposeChatActivity : ComponentActivity() {
                     }
                     override fun onComplete(modelPath: String) {
                         // Only set if user hasn't manually switched to another model
-                        val currentPath = KVUtils.getLocalModelPath()
+                        val currentPath = ModelConfigRepository.snapshot().local.modelPath
                         if (currentPath.isEmpty() || currentPath == modelPath) {
-                            KVUtils.setLlmProvider("LOCAL")
-                            KVUtils.setLocalModelPath(modelPath)
-                            KVUtils.setLlmModelName(defaultModel.id)
+                            ModelConfigRepository.activateLocal(modelPath, defaultModel.id)
                         }
                         runOnUiThread {
                             _isDownloading.value = false
@@ -568,8 +566,9 @@ class ComposeChatActivity : ComponentActivity() {
                     val inputTokens = usage?.inputTokenCount() ?: (text.length / 4 + 1)
                     val outputTokens = usage?.outputTokenCount() ?: (responseText.length / 4 + 1)
                     // Use the actual model name from the API response, not the configured name
-                    val modelTag = llmResponse.modelName ?: KVUtils.getLlmModelName()
-                    XLog.d(TAG, "sendChat: cloud response modelName='${llmResponse.modelName}', fallback='${KVUtils.getLlmModelName()}'")
+                    val fallbackModelName = cloudModelName ?: ModelConfigRepository.snapshot().activeCloud.modelName
+                    val modelTag = llmResponse.modelName ?: fallbackModelName
+                    XLog.d(TAG, "sendChat: cloud response modelName='${llmResponse.modelName}', fallback='$fallbackModelName'")
                     runOnUiThread {
                         val idx = _messages.indexOfLast { it.role == ChatMessage.Role.ASSISTANT }
                         if (idx >= 0) _messages[idx] = _messages[idx].copy(content = responseText, modelName = modelTag)
@@ -806,19 +805,13 @@ class ComposeChatActivity : ComponentActivity() {
         }, 500)
     }
 
-    /** If auto-reply was enabled by the task, show confirmation and press Home. */
+    /** If auto-reply was enabled by the task, show confirmation and keep the user in PokeClaw. */
     private fun checkAutoReplyConfirmation() {
         val arm = io.agents.pokeclaw.service.AutoReplyManager.getInstance()
         if (!arm.isEnabled) return
         val contacts = arm.monitoredContacts.joinToString(", ") { it.replaceFirstChar { c -> c.uppercase() } }
         addSystem("✓ Auto-reply active for $contacts.\nMonitoring in background — stop from bar above.")
-        Handler(Looper.getMainLooper()).postDelayed({
-            try {
-                ClawAccessibilityService.getInstance()?.performGlobalAction(
-                    android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
-                )
-            } catch (_: Exception) {}
-        }, 3000)
+        XLog.i(TAG, "checkAutoReplyConfirmation: monitor active, staying in PokeClaw")
     }
 
     private fun switchModel(modelId: String, displayName: String) {
@@ -831,25 +824,20 @@ class ComposeChatActivity : ComponentActivity() {
             return
         }
         if (modelId == "LOCAL") {
-            KVUtils.setLlmProvider("LOCAL")
-            _modelStatus.value = "● Gemma · On-device"
+            val localConfig = ModelConfigRepository.snapshot().local
+            if (!localConfig.isConfigured) {
+                _modelStatus.value = "No model selected"
+                isModelReady = false
+                setButtonsEnabled(false)
+                XLog.i(TAG, "switchModel: LOCAL requested but no local default configured")
+                return
+            }
+            ModelConfigRepository.activateLocal(localConfig.modelPath, localConfig.modelId)
+            _modelStatus.value = "● ${localConfig.displayName} · On-device"
             addSystem("Switched to local model")
             loadModelIfReady()
         } else {
-            // Cloud model — update default cloud config + activate
-            val provider = io.agents.pokeclaw.agent.CloudProvider.findProviderForModel(modelId)
-            val baseUrl = provider?.defaultBaseUrl
-                ?: KVUtils.getDefaultCloudBaseUrl().ifEmpty { "https://api.openai.com/v1" }
-            // Persist as default cloud model
-            KVUtils.setDefaultCloudModel(modelId)
-            if (provider != null) {
-                KVUtils.setDefaultCloudProvider(provider.name)
-                KVUtils.setDefaultCloudBaseUrl(provider.defaultBaseUrl)
-            }
-            // Activate
-            KVUtils.setLlmProvider(provider?.name ?: KVUtils.getDefaultCloudProvider().ifEmpty { "OPENAI" })
-            KVUtils.setLlmModelName(modelId)
-            KVUtils.setLlmBaseUrl(baseUrl)
+            ModelConfigRepository.activateCloudSelection(modelId)
             loadModelIfReady()
             addSystem("Switched to $displayName")
         }

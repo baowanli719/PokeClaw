@@ -496,6 +496,7 @@ Layer 1 broadcast bypasses UI routing. Only Layer 3 catches routing bugs.
 - [ ] **L3. No auto-return for monitor**: "monitor Girlfriend on WhatsApp" → monitor starts → user stays in PokeClaw (not kicked to home, not auto-returned)
 - [ ] **L4. Monitor stays in app**: after monitor starts, user remains in PokeClaw chat → can keep chatting
 - [ ] **L5. Monitor receives notification without leaving app**: monitor active + stay in PokeClaw → someone sends WhatsApp message → notification caught → auto-reply triggers
+- [ ] **L5-b. Auto-reply does not kick user Home**: monitor active → incoming message triggers auto-reply → user remains in current app/PokeClaw, no forced Home navigation
 - [ ] **L6. Second task after auto-return**: auto-return from task 1 → send task 2 → works normally
 
 ## K. Permissions

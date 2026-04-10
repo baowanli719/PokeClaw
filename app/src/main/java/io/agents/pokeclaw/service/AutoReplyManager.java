@@ -317,17 +317,9 @@ public class AutoReplyManager {
                     // triggers a fresh notification event (not an update to existing one).
                     ClawNotificationListener.dismissNotifications(packageName);
 
-                    // Press Home after reply so next message arrives as notification.
-                    try {
-                        Thread.sleep(1000);
-                        ClawAccessibilityService homeSvc = ClawAccessibilityService.getInstance();
-                        if (homeSvc != null) {
-                            homeSvc.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME);
-                            XLog.i(TAG, "Pressed Home after reply");
-                        }
-                    } catch (Exception he) {
-                        XLog.w(TAG, "Failed to press Home", he);
-                    }
+                    // Stay in the current app. NotificationListener continues to receive
+                    // future messages without forcing the user back to Home.
+                    XLog.i(TAG, "Auto-reply sent; staying in current app");
                 } else {
                     XLog.e(TAG, "Auto-reply failed: " + result.getError());
                 }

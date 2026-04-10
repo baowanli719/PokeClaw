@@ -340,7 +340,7 @@ public class SendMessageTool extends BaseTool {
      * Find and tap the send button. Strategy (generic, no app-specific IDs):
      * 1. Search tree for any node with contentDescription containing "send" (any language)
      * 2. If multiple matches, pick the one near the bottom-right (typical send button position)
-     * 3. Fallback: press Enter key (works in most messaging apps)
+     * 3. Fallback: press Enter key without leaving the current chat
      */
     private boolean tapSendOrEnter(ClawAccessibilityService service) throws InterruptedException {
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
@@ -374,14 +374,11 @@ public class SendMessageTool extends BaseTool {
             }
         }
 
-        // Fallback: press Enter key — works in most messaging apps after typing
-        XLog.i(TAG, "tapSendOrEnter: no send button found, pressing Enter");
-        service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
-        Thread.sleep(200);
-        // Use input keyevent via runtime exec as accessibility doesn't have a direct Enter action
+        // Fallback: press Enter without dismissing the keyboard first.
+        // Going "Back" here can blur the input or even leave the chat screen in some apps.
+        XLog.i(TAG, "tapSendOrEnter: no send button found, pressing Enter directly");
         try {
-            Runtime.getRuntime().exec(new String[]{"input", "keyevent", "66"}).waitFor(); // KEYCODE_ENTER
-            return true;
+            return service.sendKeyEvent(android.view.KeyEvent.KEYCODE_ENTER);
         } catch (Exception e) {
             XLog.w(TAG, "Enter key fallback failed", e);
         }

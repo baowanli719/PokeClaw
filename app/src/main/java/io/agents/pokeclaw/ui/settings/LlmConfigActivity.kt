@@ -26,7 +26,9 @@ import io.agents.pokeclaw.R
 import io.agents.pokeclaw.agent.CloudModel
 import io.agents.pokeclaw.agent.CloudProvider
 import io.agents.pokeclaw.agent.ModelPricing
+import io.agents.pokeclaw.agent.llm.ActiveModelMode
 import io.agents.pokeclaw.agent.llm.LocalModelManager
+import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.base.BaseActivity
 import io.agents.pokeclaw.ui.chat.ThemeManager
 import io.agents.pokeclaw.utils.KVUtils
@@ -67,6 +69,7 @@ class LlmConfigActivity : BaseActivity() {
         val activeModelMeta = findViewById<TextView>(R.id.tvActiveModelMeta)
         val activeModelStatus = findViewById<TextView>(R.id.tvActiveModelStatus)
         val modelList = findViewById<LinearLayout>(R.id.layoutModelList)
+        val resolvedConfig = ModelConfigRepository.snapshot()
 
         // Apply theme to active model card text
         activeModelName.setTextColor(tc.aiText)
@@ -88,9 +91,8 @@ class LlmConfigActivity : BaseActivity() {
         }
 
         // Active model — show what is ACTUALLY active based on provider
-        val currentProvider = KVUtils.getLlmProvider()
-        if (currentProvider == "LOCAL") {
-            val localPath = KVUtils.getLocalModelPath()
+        if (resolvedConfig.activeMode == ActiveModelMode.LOCAL) {
+            val localPath = resolvedConfig.local.modelPath
             val localModel = models.find { localPath.endsWith(it.fileName) }
             if (localModel != null) {
                 activeModelName.text = localModel.displayName
@@ -99,7 +101,7 @@ class LlmConfigActivity : BaseActivity() {
                 activeModelStatus.text = if (downloaded) "● Ready" else "● Not downloaded"
                 activeModelStatus.setTextColor(if (downloaded) getColor(R.color.colorSuccessPrimary) else getColor(R.color.colorWarningPrimary))
             } else if (localPath.isNotEmpty()) {
-                activeModelName.text = java.io.File(localPath).nameWithoutExtension
+                activeModelName.text = resolvedConfig.local.displayName
                 activeModelMeta.text = "On-device"
                 activeModelStatus.text = "● Ready"
                 activeModelStatus.setTextColor(getColor(R.color.colorSuccessPrimary))
@@ -110,10 +112,10 @@ class LlmConfigActivity : BaseActivity() {
                 activeModelStatus.setTextColor(Color.parseColor("#8b949e"))
             }
         } else {
-            val cloudModel = KVUtils.getDefaultCloudModel().ifEmpty { KVUtils.getLlmModelName() }
+            val cloudModel = resolvedConfig.activeCloud.modelName
             if (cloudModel.isNotEmpty()) {
                 activeModelName.text = cloudModel
-                val providerName = io.agents.pokeclaw.agent.CloudProvider.findProviderForModel(cloudModel)?.displayName ?: "Cloud"
+                val providerName = resolvedConfig.activeCloud.provider.displayName
                 activeModelMeta.text = "$providerName · Cloud"
                 activeModelStatus.text = "● Connected"
                 activeModelStatus.setTextColor(getColor(R.color.colorSuccessPrimary))
@@ -124,10 +126,11 @@ class LlmConfigActivity : BaseActivity() {
                 activeModelStatus.setTextColor(Color.parseColor("#8b949e"))
             }
         }
-        val currentModelId = if (currentProvider == "LOCAL") {
-            val localPath = KVUtils.getLocalModelPath()
-            models.find { localPath.endsWith(it.fileName) }?.id ?: ""
-        } else KVUtils.getLlmModelName()
+        val currentModelId = if (resolvedConfig.activeMode == ActiveModelMode.LOCAL) {
+            resolvedConfig.local.modelId
+        } else {
+            resolvedConfig.activeCloud.modelName
+        }
 
         // Build model list
         models.forEach { model ->
@@ -192,14 +195,9 @@ class LlmConfigActivity : BaseActivity() {
                             val path = LocalModelManager.getModelPath(this@LlmConfigActivity, model)
                             if (path != null) {
                                 // Save as default local model (independent of cloud config)
-                                KVUtils.setLocalModelPath(path)
                                 // Only switch active provider if currently on local tab
-                                val currentProvider = KVUtils.getLlmProvider()
-                                val shouldActivateLocal = currentProvider == "LOCAL" || !KVUtils.hasDefaultCloudModel()
-                                if (shouldActivateLocal) {
-                                    KVUtils.setLlmProvider("LOCAL")
-                                    KVUtils.setLlmModelName(model.id)
-                                }
+                                val shouldActivateLocal = ModelConfigRepository.isLocalActive() || !KVUtils.hasDefaultCloudModel()
+                                ModelConfigRepository.saveLocalDefault(path, model.id, shouldActivateLocal)
                                 ClawApplication.appViewModelInstance.updateAgentConfig()
                                 ClawApplication.appViewModelInstance.initAgent()
                                 Toast.makeText(this@LlmConfigActivity, "Set default local: ${model.displayName}", Toast.LENGTH_SHORT).show()
@@ -311,6 +309,10 @@ class LlmConfigActivity : BaseActivity() {
         val btnSave = findViewById<KButton>(R.id.btnSaveCloud)
         val btnClear = findViewById<TextView>(R.id.btnClearApiKey)
         val scrollView = findViewById<ScrollView>(R.id.scrollContent)
+        val configSnapshot = ModelConfigRepository.snapshot()
+        val cloudSeed = configSnapshot.defaultCloud.let {
+            if (it.modelName.isNotEmpty() || it.apiKey.isNotEmpty() || it.baseUrl.isNotEmpty()) it else configSnapshot.activeCloud
+        }
 
         installKeyboardAwareScrolling(scrollView, listOf(etApiKey, etBaseUrl, etModelName))
 
@@ -323,13 +325,9 @@ class LlmConfigActivity : BaseActivity() {
         }
 
         // Determine current provider from saved config
-        val savedProvider = KVUtils.getLlmProvider()
-        val savedModel = if (savedProvider != "LOCAL") KVUtils.getLlmModelName() else ""
-        selectedProvider = if (savedProvider == "LOCAL") CloudProvider.OPENAI
-            else CloudProvider.findProviderForModel(savedModel) ?: CloudProvider.OPENAI
-        selectedModelId = savedModel
-        val providerKey = KVUtils.getApiKeyForProvider(selectedProvider.name)
-        etApiKey.setText(providerKey.ifEmpty { KVUtils.getLlmApiKey() })
+        selectedProvider = CloudProvider.fromName(cloudSeed.providerName)
+        selectedModelId = cloudSeed.modelName
+        etApiKey.setText(cloudSeed.apiKey)
 
         // Build provider tabs
         val tabViews = mutableMapOf<CloudProvider, TextView>()
@@ -373,8 +371,8 @@ class LlmConfigActivity : BaseActivity() {
             tvCustomHint?.visibility = if (isCustom) View.VISIBLE else View.GONE
 
             if (isCustom) {
-                etBaseUrl.setText(KVUtils.getLlmBaseUrl())
-                etModelName.setText(savedModel)
+                etBaseUrl.setText(cloudSeed.baseUrl)
+                etModelName.setText(selectedModelId)
                 return
             }
 
@@ -454,7 +452,11 @@ class LlmConfigActivity : BaseActivity() {
         // Provider tab switch — load per-provider saved API key
         fun switchProvider(provider: CloudProvider, colors: ThemeManager.ChatColors) {
             selectedProvider = provider
-            selectedModelId = provider.models.firstOrNull()?.id ?: ""
+            selectedModelId = when {
+                provider == CloudProvider.CUSTOM -> cloudSeed.modelName
+                provider == cloudSeed.provider && provider.models.any { it.id == cloudSeed.modelName } -> cloudSeed.modelName
+                else -> provider.models.firstOrNull()?.id ?: ""
+            }
             updateTabStyles()
             renderModels()
             tvStatus.visibility = View.GONE
@@ -517,18 +519,13 @@ class LlmConfigActivity : BaseActivity() {
             }
 
             // Save as default cloud model (independent of local config)
-            KVUtils.setDefaultCloudModel(modelId)
-            KVUtils.setDefaultCloudProvider(selectedProvider.name)
-            KVUtils.setDefaultCloudBaseUrl(baseUrl)
-            KVUtils.setLlmApiKey(apiKey)
-            KVUtils.setApiKeyForProvider(selectedProvider.name, apiKey)
-            // Only switch active provider to cloud if currently on cloud tab
-            val currentProvider = KVUtils.getLlmProvider()
-            if (currentProvider != "LOCAL") {
-                KVUtils.setLlmProvider(selectedProvider.name)
-                KVUtils.setLlmBaseUrl(baseUrl)
-                KVUtils.setLlmModelName(modelId)
-            }
+            ModelConfigRepository.saveCloudDefault(
+                providerName = selectedProvider.name,
+                modelId = modelId,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                activateNow = !ModelConfigRepository.isLocalActive()
+            )
             ClawApplication.appViewModelInstance.updateAgentConfig()
             ClawApplication.appViewModelInstance.initAgent()
             ClawApplication.appViewModelInstance.afterInit()

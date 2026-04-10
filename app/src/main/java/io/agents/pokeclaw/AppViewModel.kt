@@ -8,7 +8,7 @@ import androidx.lifecycle.ViewModel
 import io.agents.pokeclaw.ClawApplication.Companion.appViewModelInstance
 import io.agents.pokeclaw.TaskEvent
 import io.agents.pokeclaw.agent.AgentConfig
-import io.agents.pokeclaw.agent.LlmProvider
+import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.channel.Channel
 import io.agents.pokeclaw.channel.ChannelManager
 import io.agents.pokeclaw.channel.ChannelSetup
@@ -78,28 +78,11 @@ class AppViewModel : ViewModel() {
         taskOrchestrator.initAgent()
     }
 
-    fun getAgentConfig(): AgentConfig {
-        val provider = try {
-            LlmProvider.valueOf(KVUtils.getLlmProvider())
-        } catch (_: Exception) {
-            LlmProvider.OPENAI
-        }
-
-        val baseUrl = if (provider == LlmProvider.LOCAL) {
-            KVUtils.getLocalModelPath()
-        } else {
-            KVUtils.getLlmBaseUrl().trim().ifEmpty { "https://api.openai.com/v1" }
-        }
-
-        return AgentConfig.Builder()
-            .apiKey(KVUtils.getLlmApiKey())
-            .baseUrl(baseUrl)
-            .modelName(KVUtils.getLlmModelName())
-            .temperature(0.1)
-            .maxIterations(60)
-            .provider(provider)
-            .build()
-    }
+    fun getAgentConfig(): AgentConfig =
+        ModelConfigRepository.snapshot().toAgentConfig(
+            temperature = 0.1,
+            maxIterations = 60
+        )
 
     fun updateAgentConfig(): Boolean = taskOrchestrator.updateAgentConfig()
 
