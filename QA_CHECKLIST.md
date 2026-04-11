@@ -373,6 +373,7 @@ When in doubt, rerun the smaller bundle first, then expand only if something dri
 - [ ] **B3. Task with context**: "I'm arguing with my girlfriend" → then "send sorry to Girlfriend on WhatsApp" → message content should reflect context
 - [ ] **B4. Failed contact**: "send hi to Dad on WhatsApp" → Dad not in contacts → LLM reports failure in bot bubble (not stuck, not "Task completed")
 - [ ] **B4-b. Name or phone number send target**: send to a saved contact by name, then by phone-number formatting (`+country`, local digits, or spaced/hyphenated form) → same person is resolved without requiring an exact WhatsApp display name match
+- [ ] **B4-c. Multilingual text actions stay functional**: on a device/app using non-English labels, structure-first actions (for example standard positive dialog buttons and standard send affordances) still work without requiring English-only UI text
 - [ ] **B5. Failed app**: "send hi to Girlfriend on Signal" → Signal not installed → LLM reports can't open app
 
 ## C. Cloud LLM — Monitor Workflow
@@ -420,7 +421,7 @@ When in doubt, rerun the smaller bundle first, then expand only if something dri
 - [ ] **H2. Keyboard in Models screen — API key**: Settings → LLM Config → tap API key → keyboard doesn't block field, field scrolls fully into view
 - [ ] **H2-b. Keyboard in Models screen — Base URL**: switch to Custom provider → tap Base URL → keyboard doesn't block field
 - [ ] **H2-c. Keyboard in Models screen — Model Name**: switch to Custom provider → tap Model Name → keyboard doesn't block field
-- [ ] **H2-d. Chat keyboard dismiss**: focus chat input → keyboard appears → tap a non-button space in the chatroom/message area → input loses focus and keyboard hides
+- [ ] **H2-d. Chat keyboard dismiss**: focus chat input → keyboard appears → tap a non-button space in the chatroom/message area or the header's blank area → input loses focus and keyboard hides
 - [ ] **H3. Layout sizes**: all text/buttons normal size (dp not pt)
 - [ ] **H4. Model switcher**: tap model bar → dropdown → switch model → status updates
 - [x] **H4-b. Local backend label is truthful**: Local model falls back GPU→CPU → top-left model status updates to `CPU`, not stale `GPU`
@@ -990,6 +991,8 @@ Format: `[date] [status] [test-id] description`
 [2026-04-10] [PASS]    Phase5-r3  Local model state consolidation compile gate: `LocalModelManager` now exposes shared device-support, catalog, and active-model state so `LlmConfigActivity` and `ChatSessionController` stop maintaining separate RAM/support/downloaded calculations (`compileDebugKotlin`, `compileDebugJavaWithJavac`)
 [2026-04-10] [PASS]    Phase5-r4  Local model ownership cleanup compile gate: `LocalModelManager.downloadModel()` no longer mutates MMKV selection state directly; chat/settings callers now decide whether a finished download should update the default or active local model (`compileDebugKotlin`, `compileDebugJavaWithJavac`)
 [2026-04-10] [NOTE]    QA-wf-r2  Device-state guard for Compose UI smoke: if notification shade or another app steals foreground, collapse/foreground PokeClaw again before judging the refactor; if IME moves the input bar, re-dump live bounds instead of reusing stale tap coordinates
+[2026-04-10] [PASS]    H2-d  Chat keyboard dismiss smoke passed on Pixel 8 Pro: after focusing the input, tapping the blank header area cleared focus (`focused=true` -> `focused=false`) and hid the IME instead of trapping the keyboard on screen
+[2026-04-10] [PASS]    B4-c  Accessibility text-match hardening compile/unit bundle passed: low-level lookup now keeps Android's fast text path but falls back to a Unicode-normalized tree walk, and standard launch dialogs try stable positive-button ids before language-specific keywords
 ```
 
 ### Bugs Found During v9 QA

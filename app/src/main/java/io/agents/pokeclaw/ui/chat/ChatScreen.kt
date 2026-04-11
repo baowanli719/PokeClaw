@@ -99,8 +99,8 @@ val AbyssDark = PokeclawColors(
 private fun Modifier.dismissKeyboardOnBackgroundTap(onDismissKeyboard: () -> Unit): Modifier =
     pointerInput(onDismissKeyboard) {
         awaitEachGesture {
-            awaitFirstDown(pass = PointerEventPass.Final)
-            val up = waitForUpOrCancellation(pass = PointerEventPass.Final)
+            awaitFirstDown(requireUnconsumed = false)
+            val up = waitForUpOrCancellation()
             if (up != null) {
                 onDismissKeyboard()
             }
@@ -212,7 +212,9 @@ fun ChatScreen(
         Scaffold(
             containerColor = colors.background,
             topBar = {
-                Column {
+                Column(
+                    modifier = Modifier.dismissKeyboardOnBackgroundTap(dismissKeyboard)
+                ) {
                     ChatTopBar(
                         modelStatus = modelStatus,
                         sessionTokens = sessionTokens,

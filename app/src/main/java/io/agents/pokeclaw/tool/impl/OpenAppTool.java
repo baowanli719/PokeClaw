@@ -34,6 +34,13 @@ public class OpenAppTool extends BaseTool {
     private static final List<String> ALLOW_KEYWORDS = Arrays.asList(
             "允许", "允许打开", "打开", "Allow", "ALLOW"
     );
+    private static final List<String> POSITIVE_BUTTON_IDS = Arrays.asList(
+            "android:id/button1",
+            "miuix.appcompat:id/button1",
+            "com.android.permissioncontroller:id/permission_allow_button",
+            "com.android.permissioncontroller:id/permission_allow_foreground_only_button",
+            "com.android.permissioncontroller:id/permission_allow_one_time_button"
+    );
 
     @Override
     public String getName() {
@@ -107,6 +114,10 @@ public class OpenAppTool extends BaseTool {
                 return;
             }
 
+            if (tapPositiveDialogButton(service)) {
+                return;
+            }
+
             for (String keyword : ALLOW_KEYWORDS) {
                 List<AccessibilityNodeInfo> nodes = service.findNodesByText(keyword);
                 try {
@@ -126,6 +137,27 @@ public class OpenAppTool extends BaseTool {
                 }
             }
         }
+    }
+
+    private boolean tapPositiveDialogButton(ClawAccessibilityService service) {
+        for (String viewId : POSITIVE_BUTTON_IDS) {
+            List<AccessibilityNodeInfo> nodes = service.findNodesById(viewId);
+            try {
+                for (AccessibilityNodeInfo node : nodes) {
+                    if (!node.isVisibleToUser() || !node.isEnabled()) {
+                        continue;
+                    }
+                    boolean clicked = service.clickNode(node);
+                    XLog.i(TAG, "Chain launch dialog: tapped positive button id " + viewId + " " + (clicked ? "success" : "failed"));
+                    if (clicked) {
+                        return true;
+                    }
+                }
+            } finally {
+                ClawAccessibilityService.recycleNodes(nodes);
+            }
+        }
+        return false;
     }
 
     /**

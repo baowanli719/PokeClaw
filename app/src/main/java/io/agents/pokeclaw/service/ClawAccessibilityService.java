@@ -23,11 +23,15 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import io.agents.pokeclaw.utils.UiTextMatchUtils;
 
 /**
  * Core accessibility service that provides all device interaction capabilities.
@@ -271,11 +275,27 @@ public class ClawAccessibilityService extends AccessibilityService {
      */
     public List<AccessibilityNodeInfo> findNodesByText(String text) {
         AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) {
+        String query = text != null ? text.trim() : "";
+        if (root == null || query.isEmpty()) {
             return new ArrayList<>();
         }
-        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(text);
-        return nodes != null ? nodes : new ArrayList<>();
+
+        List<AccessibilityNodeInfo> directMatches = root.findAccessibilityNodeInfosByText(query);
+        if (directMatches != null && !directMatches.isEmpty()) {
+            return directMatches;
+        }
+
+        LinkedHashMap<String, AccessibilityNodeInfo> exactMatches = new LinkedHashMap<>();
+        LinkedHashMap<String, AccessibilityNodeInfo> relaxedMatches = new LinkedHashMap<>();
+        collectTextMatches(root, query, exactMatches, relaxedMatches);
+
+        if (!exactMatches.isEmpty()) {
+            return new ArrayList<>(exactMatches.values());
+        }
+        if (!relaxedMatches.isEmpty()) {
+            return new ArrayList<>(relaxedMatches.values());
+        }
+        return new ArrayList<>();
     }
 
     /**
@@ -541,6 +561,71 @@ public class ClawAccessibilityService extends AccessibilityService {
                 }
             }
         }
+    }
+
+    private void collectTextMatches(
+            AccessibilityNodeInfo node,
+            String query,
+            Map<String, AccessibilityNodeInfo> exactMatches,
+            Map<String, AccessibilityNodeInfo> relaxedMatches
+    ) {
+        if (node == null) return;
+
+        addTextMatch(node, query, exactMatches, relaxedMatches);
+
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) continue;
+            try {
+                collectTextMatches(child, query, exactMatches, relaxedMatches);
+            } finally {
+                child.recycle();
+            }
+        }
+    }
+
+    private void addTextMatch(
+            AccessibilityNodeInfo node,
+            String query,
+            Map<String, AccessibilityNodeInfo> exactMatches,
+            Map<String, AccessibilityNodeInfo> relaxedMatches
+    ) {
+        if (!node.isVisibleToUser()) return;
+
+        CharSequence text = node.getText();
+        CharSequence description = node.getContentDescription();
+        CharSequence hint = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? node.getHintText() : null;
+
+        boolean exact = UiTextMatchUtils.matchesExactOrNormalized(text, query)
+                || UiTextMatchUtils.matchesExactOrNormalized(description, query)
+                || UiTextMatchUtils.matchesExactOrNormalized(hint, query);
+        boolean relaxed = exact
+                || UiTextMatchUtils.matchesRelaxed(text, query)
+                || UiTextMatchUtils.matchesRelaxed(description, query)
+                || UiTextMatchUtils.matchesRelaxed(hint, query);
+
+        if (!relaxed) return;
+
+        String nodeKey = buildNodeKey(node);
+        if (exact) {
+            if (!exactMatches.containsKey(nodeKey)) {
+                exactMatches.put(nodeKey, AccessibilityNodeInfo.obtain(node));
+            }
+            return;
+        }
+
+        if (!relaxedMatches.containsKey(nodeKey)) {
+            relaxedMatches.put(nodeKey, AccessibilityNodeInfo.obtain(node));
+        }
+    }
+
+    private String buildNodeKey(AccessibilityNodeInfo node) {
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        return String.valueOf(node.getClassName()) + "|"
+                + String.valueOf(node.getText()) + "|"
+                + String.valueOf(node.getContentDescription()) + "|"
+                + bounds.toShortString();
     }
 
     /**

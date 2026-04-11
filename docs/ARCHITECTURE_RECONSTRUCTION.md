@@ -516,6 +516,8 @@ This is the phase that makes lower-RAM support and more local models safer to ad
   - for Compose chat smoke, collapse any notification shade / foreground interruption first, then re-dump live bounds before tapping send
 - Brittle-path hardening now in flight:
   - `send_message` and monitor contact matching no longer depend purely on exact display-name text; name and phone-number formatting now share one deterministic matcher
+  - low-level accessibility text lookup now keeps the fast platform path but falls back to a Unicode-normalized tree walk when direct text lookup misses, so casing/punctuation/formatting drift is less fragile
+  - chain-launch allow dialogs now try stable positive-button ids before falling back to visible text keywords, which reduces language dependence
   - chat keyboard dismissal now has an explicit focus-clear path for tapping back into the chatroom, but the final focused-device QA should still be tracked under `H2-d`
 
 ## Phase 6 — Release / Distribution Surface

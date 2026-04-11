@@ -25,6 +25,7 @@ public final class ContactMatchUtils {
             .trim()
             .replaceAll("[^\\p{L}\\p{Nd}]+", " ")
             .replaceAll("\\s+", " ")
+            .trim()
             .toLowerCase(Locale.ROOT);
     }
 
