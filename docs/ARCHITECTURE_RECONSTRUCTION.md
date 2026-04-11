@@ -519,6 +519,7 @@ This is the phase that makes lower-RAM support and more local models safer to ad
   - low-level accessibility text lookup now keeps the fast platform path but falls back to a Unicode-normalized tree walk when direct text lookup misses, so casing/punctuation/formatting drift is less fragile
   - chain-launch allow dialogs now try stable positive-button ids before falling back to visible text keywords, which reduces language dependence
   - chat keyboard dismissal now has an explicit focus-clear path for tapping back into the chatroom, but the final focused-device QA should still be tracked under `H2-d`
+  - send / reply affordances are moving to the same rule: prefer structure, geometry, and resource-id hints first; only use localized visible text as a fallback; and when the LLM must help, describe the control by function instead of exact wording
 
 ## Phase 6 — Release / Distribution Surface
 

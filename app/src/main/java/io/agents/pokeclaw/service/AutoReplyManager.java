@@ -13,6 +13,7 @@ import io.agents.pokeclaw.tool.ToolResult;
 import io.agents.pokeclaw.tool.impl.SendMessageTool;
 import io.agents.pokeclaw.ClawApplication;
 import io.agents.pokeclaw.utils.ContactMatchUtils;
+import io.agents.pokeclaw.utils.UiActionMatchUtils;
 import io.agents.pokeclaw.utils.XLog;
 
 import java.util.ArrayList;
@@ -688,10 +689,8 @@ public class AutoReplyManager {
             root = service.getRootInActiveWindow();
             if (root == null) root = service.getRootInActiveWindow();
 
-            AccessibilityNodeInfo sendBtn = findNodeByDesc(root, "send");
-            if (sendBtn == null) sendBtn = findNodeByDesc(root, "Send");
-            // Some apps use a specific resource ID pattern
-            if (sendBtn == null) sendBtn = findClickableByPartialId(root, "send");
+            android.graphics.Rect inputBounds = getBottomEditTextBounds(root);
+            AccessibilityNodeInfo sendBtn = UiActionMatchUtils.findBestSendAction(root, inputBounds);
 
             if (sendBtn != null) {
                 service.clickNode(sendBtn);
@@ -725,9 +724,10 @@ public class AutoReplyManager {
 
             String screenText = screenResult.getData();
             String prompt = "I already typed a message in the chat input field. " +
-                "Now I need to tap the SEND button to send it.\n\n" +
+                "Now I need to tap the control that actually sends it. " +
+                "It may be an icon-only button or a localized label, so do not require an exact text match.\n\n" +
                 "Current screen:\n" + screenText + "\n\n" +
-                "Which element is the send button? Reply with ONLY the node ID (e.g., n5) or coordinates (e.g., 950,2100). Nothing else.";
+                "Which element is the real send control? Reply with ONLY the node ID (e.g., n5) or coordinates (e.g., 950,2100). Nothing else.";
 
             String response = singleLlmCall(prompt);
             if (response == null || response.isEmpty()) {
@@ -782,6 +782,7 @@ public class AutoReplyManager {
             String prompt = "I'm in a messaging chat and need to type and send a message.\n" +
                 "Message to send: \"" + message + "\"\n\n" +
                 "Current screen:\n" + screenText + "\n\n" +
+                "Choose controls by function, not by exact wording. The send control might be icon-only or localized.\n" +
                 "Tell me the steps as JSON array. Example:\n" +
                 "[{\"action\":\"tap\",\"target\":\"n5\"},{\"action\":\"type\",\"text\":\"hello\"},{\"action\":\"tap\",\"target\":\"n8\"}]\n" +
                 "Reply with ONLY the JSON array. Target can be node ID (n5) or coordinates (540,1800).";
@@ -870,19 +871,23 @@ public class AutoReplyManager {
         return io.agents.pokeclaw.agent.llm.LlmSessionManager.INSTANCE.singleShot(prompt, 0.3);
     }
 
-    /** Find a clickable node whose resource ID contains the keyword */
-    private AccessibilityNodeInfo findClickableByPartialId(AccessibilityNodeInfo node, String keyword) {
-        if (node == null) return null;
-        String rid = node.getViewIdResourceName();
-        if (rid != null && rid.toLowerCase().contains(keyword.toLowerCase()) && node.isClickable()) {
-            return node;
+    private android.graphics.Rect getBottomEditTextBounds(AccessibilityNodeInfo root) {
+        java.util.List<AccessibilityNodeInfo> editables = new java.util.ArrayList<>();
+        collectEditTexts(root, editables);
+        AccessibilityNodeInfo bottom = null;
+        int bestY = Integer.MIN_VALUE;
+        for (AccessibilityNodeInfo node : editables) {
+            android.graphics.Rect bounds = new android.graphics.Rect();
+            node.getBoundsInScreen(bounds);
+            if (bounds.centerY() > bestY) {
+                bestY = bounds.centerY();
+                bottom = node;
+            }
         }
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            AccessibilityNodeInfo found = findClickableByPartialId(child, keyword);
-            if (found != null) return found;
-        }
-        return null;
+        if (bottom == null) return null;
+        android.graphics.Rect bounds = new android.graphics.Rect();
+        bottom.getBoundsInScreen(bounds);
+        return bounds;
     }
 
     /** Collect text nodes in top 300px (toolbar area) */
@@ -988,18 +993,6 @@ public class AutoReplyManager {
             return trimmed.toString();
         }
         return context.toString();
-    }
-
-    private AccessibilityNodeInfo findNodeByDesc(AccessibilityNodeInfo node, String keyword) {
-        if (node == null) return null;
-        CharSequence desc = node.getContentDescription();
-        if (desc != null && desc.toString().toLowerCase().contains(keyword.toLowerCase())) return node;
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            AccessibilityNodeInfo found = findNodeByDesc(child, keyword);
-            if (found != null) return found;
-        }
-        return null;
     }
 
     private void collectAllTextNodes(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> result) {

@@ -12,6 +12,7 @@ import io.agents.pokeclaw.service.ClawAccessibilityService;
 import io.agents.pokeclaw.tool.BaseTool;
 import io.agents.pokeclaw.tool.ToolParameter;
 import io.agents.pokeclaw.tool.ToolResult;
+import io.agents.pokeclaw.utils.UiActionMatchUtils;
 import io.agents.pokeclaw.utils.ContactMatchUtils;
 import io.agents.pokeclaw.utils.XLog;
 
@@ -356,32 +357,12 @@ public class SendMessageTool extends BaseTool {
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (root == null) return false;
 
-        // Collect all nodes with "send" in their content description
-        String[] sendKeywords = {"send", "發送", "发送", "傳送", "전송", "送信", "enviar", "envoyer", "senden", "отправить"};
-        List<AccessibilityNodeInfo> sendNodes = new ArrayList<>();
-        for (String keyword : sendKeywords) {
-            collectNodesByDesc(root, keyword, sendNodes);
-        }
-        XLog.i(TAG, "tapSendOrEnter: found " + sendNodes.size() + " send button candidates");
-
-        if (!sendNodes.isEmpty()) {
-            // Pick the one closest to bottom-right (most likely the send button)
-            AccessibilityNodeInfo best = null;
-            int bestScore = -1;
-            for (AccessibilityNodeInfo node : sendNodes) {
-                Rect bounds = new Rect();
-                node.getBoundsInScreen(bounds);
-                int score = bounds.centerX() + bounds.centerY(); // bottom-right = highest score
-                if (score > bestScore) {
-                    bestScore = score;
-                    best = node;
-                }
-            }
-            if (best != null) {
-                boolean clicked = service.clickNode(best);
-                XLog.i(TAG, "tapSendOrEnter: tapped send button, clicked=" + clicked);
-                if (clicked) return true;
-            }
+        Rect inputBounds = findBottomEditTextBounds(root);
+        AccessibilityNodeInfo sendNode = UiActionMatchUtils.findBestSendAction(root, inputBounds);
+        if (sendNode != null) {
+            boolean clicked = service.clickNode(sendNode);
+            XLog.i(TAG, "tapSendOrEnter: tapped structural send candidate, clicked=" + clicked);
+            if (clicked) return true;
         }
 
         // Fallback: press Enter without dismissing the keyboard first.
@@ -395,15 +376,23 @@ public class SendMessageTool extends BaseTool {
         return false;
     }
 
-    private void collectNodesByDesc(AccessibilityNodeInfo node, String keyword, List<AccessibilityNodeInfo> results) {
-        if (node == null) return;
-        CharSequence desc = node.getContentDescription();
-        if (desc != null && desc.toString().toLowerCase().contains(keyword.toLowerCase())) {
-            results.add(node);
+    private Rect findBottomEditTextBounds(AccessibilityNodeInfo root) {
+        List<AccessibilityNodeInfo> editTexts = new ArrayList<>();
+        collectEditTexts(root, editTexts);
+        AccessibilityNodeInfo bottom = null;
+        int bestY = Integer.MIN_VALUE;
+        for (AccessibilityNodeInfo node : editTexts) {
+            Rect bounds = new Rect();
+            node.getBoundsInScreen(bounds);
+            if (bounds.centerY() > bestY) {
+                bestY = bounds.centerY();
+                bottom = node;
+            }
         }
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            if (child != null) collectNodesByDesc(child, keyword, results);
-        }
+        if (bottom == null) return null;
+        Rect bounds = new Rect();
+        bottom.getBoundsInScreen(bounds);
+        return bounds;
     }
+
 }
