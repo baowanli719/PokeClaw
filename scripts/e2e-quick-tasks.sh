@@ -13,6 +13,21 @@ LOCAL_MODEL_PATH="${LOCAL_MODEL_PATH:-/storage/emulated/0/Android/data/io.agents
 LOCAL_MODEL_NAME="${LOCAL_MODEL_NAME:-gemma4-e2b}"
 CLOUD_MODEL_NAME="${CLOUD_MODEL_NAME:-gpt-4.1}"
 
+adb_retry() {
+    local attempt=1
+    local max_attempts="${ADB_MAX_ATTEMPTS:-3}"
+    while true; do
+        if "$@"; then
+            return 0
+        fi
+        if [ "$attempt" -ge "$max_attempts" ]; then
+            return 1
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+}
+
 print_usage() {
     echo "Usage: $0 [cloud|local]"
     echo "Env:"
@@ -33,10 +48,10 @@ configure_mode() {
                 echo "OPENAI_API_KEY not set and .env not available"
                 exit 1
             fi
-            adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task 'config:' --es api_key '$OPENAI_API_KEY' --es model_name '$CLOUD_MODEL_NAME'" >/dev/null
+            adb_retry adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task 'config:' --es api_key '$OPENAI_API_KEY' --es model_name '$CLOUD_MODEL_NAME'" >/dev/null
             ;;
         local)
-            adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task 'config:' --es provider 'LOCAL' --es base_url '$LOCAL_MODEL_PATH' --es model_name '$LOCAL_MODEL_NAME'" >/dev/null
+            adb_retry adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task 'config:' --es provider 'LOCAL' --es base_url '$LOCAL_MODEL_PATH' --es model_name '$LOCAL_MODEL_NAME'" >/dev/null
             ;;
         -h|--help|help)
             print_usage
@@ -77,9 +92,9 @@ run() {
     echo "[$TOTAL] $name" | tee -a "$RESULTS_FILE"
     echo "    Task: $task" | tee -a "$RESULTS_FILE"
 
-    adb logcat -c >/dev/null 2>&1 || true
+    adb_retry adb logcat -c >/dev/null 2>&1 || true
     sleep 1
-    adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task '$task'" >/dev/null 2>&1
+    adb_retry adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task '$task'" >/dev/null 2>&1
 
     local i=0
     while [ "$i" -lt "$max" ]; do
@@ -106,8 +121,8 @@ run() {
             echo "    [${i}s] BLOCKED — agent still running previous task, retrying..." | tee -a "$RESULTS_FILE"
             sleep 15
             i=$((i + 15))
-            adb logcat -c >/dev/null 2>&1 || true
-            adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task '$task'" >/dev/null 2>&1
+            adb_retry adb logcat -c >/dev/null 2>&1 || true
+            adb_retry adb shell "am broadcast -a io.agents.pokeclaw.DEBUG_TASK -p io.agents.pokeclaw --es task '$task'" >/dev/null 2>&1
             continue
         fi
 
@@ -156,7 +171,7 @@ echo "  $(date)" | tee -a "$RESULTS_FILE"
 echo "  results: $RESULTS_FILE" | tee -a "$RESULTS_FILE"
 echo "==========================================" | tee -a "$RESULTS_FILE"
 
-adb shell am start -n io.agents.pokeclaw/.ui.splash.SplashActivity >/dev/null 2>&1
+adb_retry adb shell am start -n io.agents.pokeclaw/.ui.splash.SplashActivity >/dev/null 2>&1
 sleep 3
 configure_mode
 
