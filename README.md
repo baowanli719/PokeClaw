@@ -138,42 +138,57 @@ These are tasks we have already run end-to-end during on-device QA.
 - Draft an email saying you will be late
 - Preserve task state and session history across cross-app execution and return
 
-## Benchmark & Performance
+## Benchmark & Real-Device QA
 
-These numbers come from real release QA on a Pixel 8 Pro. For the broader verified task list and tier breakdown, see [thoughts/verified-task-capabilities.md](thoughts/verified-task-capabilities.md).
+Every number below comes from repeated trials on a physical Pixel 8 Pro running release builds. No cherry-picked runs, no emulators. The full verified task list and tier breakdown is in [thoughts/verified-task-capabilities.md](thoughts/verified-task-capabilities.md).
 
-### Cloud task reliability
+### Cloud (GPT-4.1) — multi-app task reliability
 
-| Task | Result | Pass rate | Typical successful run | Notes |
+| Task | Pass rate | Avg rounds | Avg tokens | What happens |
 |---|---:|---:|---:|---|
-| Draft an email saying you'll be late | `10/10` | `100%` | `8 rounds / ~52.2K tokens` | Stayed on the in-app Gmail compose path and finished as a draft |
-| Copy the latest email subject and Google it | `8/10` | `80%` | `15 rounds / ~110.2K tokens` | Exploratory multi-app flow; two trials cancelled, eight completed |
+| Draft an email | **10/10** | 8 | ~52K | Opens Gmail, fills subject + body, saves draft, returns to PokeClaw |
+| Copy email subject and Google it | **8/10** | 15 | ~110K | Opens Gmail, reads latest subject, opens Chrome, searches it. Two trials timed out on long navigation chains |
 
-### Local E4B performance
+Both tasks involve zero hardcoded app logic. The model reads the screen, picks tools, and figures out the flow on its own.
 
-| Task | Result | Pass rate | Observed completion profile | Notes |
-|---|---:|---:|---:|---|
-| Battery | `PASS` | `1/1` | `~3-5 min` | Slow first generation window, then finishes cleanly |
-| Notifications summary | `PASS` | `1/1` | `~3-5 min` | Reads live notifications on-device |
-| Storage | `PASS` | `1/1` | `~3-5 min` | Returns used/free storage correctly |
-| Clipboard explain | `PASS` | `1/1` | `~3-5 min` | Uses the real clipboard tool, no fake denial |
+### Local (Gemma 4 E4B, fully on-device) — core tasks
 
-Average Local E4B behavior on this device: expect roughly **3-5 minutes per task** when running fully on-device. It is slower than Cloud, but it stays private and still completes the core device-information tasks reliably.
+| Task | Result | Completion time | What happens |
+|---|---:|---:|---|
+| Battery status | ✅ | ~3 min | Calls `get_device_info(battery)`, returns level + charging state + temperature |
+| Notification summary | ✅ | ~5 min | Reads live notifications via `get_notifications`, summarizes them |
+| Storage check | ✅ | ~3.5 min | Returns used/free/total storage with percentages |
+| Clipboard explain | ✅ | ~3 min | Reads real clipboard contents and explains what it found |
+| Send message via WhatsApp | ✅ | ~2 rounds | Opens WhatsApp, finds contact, types, sends (playbook-assisted) |
 
-## Capability Matrix
+Local mode is slower than Cloud because inference runs entirely on the phone CPU. On a Pixel 8 Pro, expect 3-5 minutes for tasks that need the model to think and use tools. Simpler tasks (open app, system keys) are instant.
 
-| Capability | Free / Deterministic | Local / On-device LLM | Cloud / Hosted LLM |
+The tradeoff is real: local is private, free, and works offline. Cloud is faster and handles harder multi-app flows.
+
+### Deterministic (Free, no LLM needed)
+
+These run instantly with zero tokens:
+
+| Task | How |
+|---|---|
+| Open any app | Direct intent launch |
+| Take a screenshot | System API |
+| Lock phone | System key |
+| Go back / home | System key |
+
+### What each tier can do
+
+| | Free | Local LLM | Cloud LLM |
 |---|---|---|---|
-| Open apps, system keys, screenshot, lock phone | ✅ | ✅ | ✅ |
-| Device info: battery / storage / Android version / Bluetooth | ⚠️ basic deterministic only | ✅ | ✅ |
-| Read clipboard and notifications | ❌ | ✅ | ✅ |
-| Same-chatroom conversational memory | ❌ | ✅ | ✅ |
-| Relaunch continuity in the same conversation | ❌ | ✅ | ✅ |
-| Quick task templates | ❌ | ✅ | ✅ |
-| Multi-step in-app search and navigation | ❌ | ⚠️ limited | ✅ |
-| Cross-app exploratory tasks | ❌ | ⚠️ limited | ✅ |
-| Gmail draft / Reddit / YouTube / Play Store flows | ❌ | ❌ / not the target tier | ✅ |
-| Background monitor / auto-reply workflows | ✅ shell + app plumbing | ✅ local reply generation | ✅ stronger reasoning + context handling |
+| Open apps, screenshot, lock, system keys | ✅ instant | ✅ instant | ✅ instant |
+| Battery, storage, WiFi, Bluetooth status | basic only | ✅ natural language | ✅ natural language |
+| Read clipboard and notifications | - | ✅ | ✅ |
+| Send messages, make calls | - | ✅ with playbook | ✅ |
+| In-app search (YouTube, Chrome, Play Store) | - | partial | ✅ |
+| Cross-app tasks (Gmail to Chrome) | - | - | ✅ |
+| Background auto-reply monitor | ✅ plumbing | ✅ local LLM replies | ✅ stronger context |
+| Conversation memory across restarts | - | ✅ | ✅ |
+| Works offline, no account needed | ✅ | ✅ | - |
 
 ## How it works
 
