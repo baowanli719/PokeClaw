@@ -138,6 +138,43 @@ These are tasks we have already run end-to-end during on-device QA.
 - Draft an email saying you will be late
 - Preserve task state and session history across cross-app execution and return
 
+## Benchmark & Performance
+
+These numbers come from real release QA on a Pixel 8 Pro. For the broader verified task list and tier breakdown, see [thoughts/verified-task-capabilities.md](thoughts/verified-task-capabilities.md).
+
+### Cloud task reliability
+
+| Task | Result | Pass rate | Typical successful run | Notes |
+|---|---:|---:|---:|---|
+| Draft an email saying you'll be late | `10/10` | `100%` | `8 rounds / ~52.2K tokens` | Stayed on the in-app Gmail compose path and finished as a draft |
+| Copy the latest email subject and Google it | `8/10` | `80%` | `15 rounds / ~110.2K tokens` | Exploratory multi-app flow; two trials cancelled, eight completed |
+
+### Local E4B performance
+
+| Task | Result | Pass rate | Observed completion profile | Notes |
+|---|---:|---:|---:|---|
+| Battery | `PASS` | `1/1` | `~3-5 min` | Slow first generation window, then finishes cleanly |
+| Notifications summary | `PASS` | `1/1` | `~3-5 min` | Reads live notifications on-device |
+| Storage | `PASS` | `1/1` | `~3-5 min` | Returns used/free storage correctly |
+| Clipboard explain | `PASS` | `1/1` | `~3-5 min` | Uses the real clipboard tool, no fake denial |
+
+Average Local E4B behavior on this device: expect roughly **3-5 minutes per task** when running fully on-device. It is slower than Cloud, but it stays private and still completes the core device-information tasks reliably.
+
+## Capability Matrix
+
+| Capability | Free / Deterministic | Local / On-device LLM | Cloud / Hosted LLM |
+|---|---|---|---|
+| Open apps, system keys, screenshot, lock phone | ✅ | ✅ | ✅ |
+| Device info: battery / storage / Android version / Bluetooth | ⚠️ basic deterministic only | ✅ | ✅ |
+| Read clipboard and notifications | ❌ | ✅ | ✅ |
+| Same-chatroom conversational memory | ❌ | ✅ | ✅ |
+| Relaunch continuity in the same conversation | ❌ | ✅ | ✅ |
+| Quick task templates | ❌ | ✅ | ✅ |
+| Multi-step in-app search and navigation | ❌ | ⚠️ limited | ✅ |
+| Cross-app exploratory tasks | ❌ | ⚠️ limited | ✅ |
+| Gmail draft / Reddit / YouTube / Play Store flows | ❌ | ❌ / not the target tier | ✅ |
+| Background monitor / auto-reply workflows | ✅ shell + app plumbing | ✅ local reply generation | ✅ stronger reasoning + context handling |
+
 ## How it works
 
 PokeClaw gives a small on-device LLM a set of tools (tap, swipe, type, open app, send message, enable auto-reply, etc.) and lets it decide what to do. The LLM sees a text representation of the current screen, picks an action, sees the result, picks the next action, until the task is done.
