@@ -47,9 +47,9 @@ resolve_local_model() {
     local e2b_path="${models_dir}/gemma-4-E2B-it.litertlm"
 
     if [ -z "$LOCAL_MODEL_PATH" ]; then
-        if adb shell "[ -f '$e4b_path' ]" >/dev/null 2>&1; then
+        if adb shell test -f "$e4b_path" >/dev/null 2>&1; then
             LOCAL_MODEL_PATH="$e4b_path"
-        elif adb shell "[ -f '$e2b_path' ]" >/dev/null 2>&1; then
+        elif adb shell test -f "$e2b_path" >/dev/null 2>&1; then
             LOCAL_MODEL_PATH="$e2b_path"
         fi
     fi
@@ -202,7 +202,7 @@ echo "  $(date)" | tee -a "$RESULTS_FILE"
 echo "  results: $RESULTS_FILE" | tee -a "$RESULTS_FILE"
 echo "==========================================" | tee -a "$RESULTS_FILE"
 
-adb_retry adb shell am start -n io.agents.pokeclaw/.ui.splash.SplashActivity >/dev/null 2>&1
+adb_retry adb shell am start -n io.agents.pokeclaw/.ui.splash.SplashActivity >/dev/null 2>&1 || true
 sleep 3
 configure_mode
 
