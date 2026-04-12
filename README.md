@@ -165,16 +165,6 @@ Local mode is slower than Cloud because inference runs entirely on the phone CPU
 
 The tradeoff is real: local is private, free, and works offline. Cloud is faster and handles harder multi-app flows.
 
-### Deterministic (Free, no LLM needed)
-
-These run instantly with zero tokens:
-
-| Task | How |
-|---|---|
-| Open any app | Direct intent launch |
-| Take a screenshot | System API |
-| Lock phone | System key |
-| Go back / home | System key |
 
 
 ## How it works
