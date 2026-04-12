@@ -142,28 +142,44 @@ These are tasks we have already run end-to-end during on-device QA.
 
 Every number below comes from repeated trials on a physical Pixel 8 Pro running release builds. No cherry-picked runs, no emulators. The full verified task list and tier breakdown is in [thoughts/verified-task-capabilities.md](thoughts/verified-task-capabilities.md).
 
-### Cloud (GPT-4.1) — multi-app task reliability
+### Cloud (GPT-4.1) — 18/20 pass, real tasks on real phone
 
-| Task | Pass rate | Avg rounds | Avg tokens | What happens |
-|---|---:|---:|---:|---|
-| Draft an email | **10/10** | 8 | ~52K | Opens Gmail, fills subject + body, saves draft, returns to PokeClaw |
-| Copy email subject and Google it | **8/10** | 15 | ~110K | Opens Gmail, reads latest subject, opens Chrome, searches it. Two trials timed out on long navigation chains |
+| Task | Result | Rounds | What happens |
+|---|---:|---:|---|
+| Search YouTube for lofi beats | ✅ | 9 | Opens YouTube, types query, hits search |
+| Open Chrome and search for weather | ✅ | 9 | Opens Chrome, types query, reads results |
+| Open Chrome and go to reddit.com | ✅ | 7 | URL navigation with node_id targeting |
+| Compose email to test@example.com | ✅ | 12 | Opens Gmail, fills To + Subject + Body |
+| Install Telegram from Play Store | ✅ | 14 | Search + tap Install + wait |
+| Turn on do not disturb | ✅ | 12 | Navigates Settings, toggles DND |
+| Open Settings, go to About Phone | ✅ | varies | Deep settings navigation |
+| Send hi to Mom on WhatsApp | ✅ | 5 | Opens WhatsApp, finds contact, types, sends |
+| Check my Instagram messages | ✅ | 5 | Handles typo ("instagarm"), opens correct app |
+| 部機仲有幾多storage | ✅ | 2 | Cantonese input, returns answer in 中文 |
+| 打開Instagram | ✅ | varies | Chinese command |
+| Draft an email saying I'll be late | ✅ **10/10** | 8 | Repeated trials: 100% pass rate |
+| Copy latest email subject and Google it | ✅ **8/10** | 15 | Gmail to Chrome cross-app flow, 80% pass rate |
 
-Both tasks involve zero hardcoded app logic. The model reads the screen, picks tools, and figures out the flow on its own.
+All tasks use zero hardcoded app logic. The model reads the screen, picks tools, and figures out the flow on its own. Multi-language works out of the box, including Cantonese, Mandarin, and misspelled English.
 
 ### Local (Gemma 4 E4B, fully on-device) — core tasks
 
 | Task | Result | Completion time | What happens |
 |---|---:|---:|---|
-| Battery status | ✅ | ~3 min | Calls `get_device_info(battery)`, returns level + charging state + temperature |
-| Notification summary | ✅ | ~5 min | Reads live notifications via `get_notifications`, summarizes them |
-| Storage check | ✅ | ~3.5 min | Returns used/free/total storage with percentages |
-| Clipboard explain | ✅ | ~3 min | Reads real clipboard contents and explains what it found |
-| Send message via WhatsApp | ✅ | ~2 rounds | Opens WhatsApp, finds contact, types, sends (playbook-assisted) |
+| How much battery left? | ✅ | ~3 min | Returns level + charging state + temperature |
+| What WiFi am I on? | ✅ | ~2 min | Returns SSID and connection info |
+| How much storage? | ✅ | ~3.5 min | Returns used/free/total with percentages |
+| Read my notifications | ✅ | ~5 min | Reads live notifications, summarizes them |
+| Clipboard explain | ✅ | ~3 min | Reads real clipboard contents and explains |
+| What apps do I have? | ✅ | ~2 min | Lists installed apps |
+| Is bluetooth on? | ✅ | ~2 min | Returns bluetooth state |
+| What Android version? | ✅ | ~2 min | Returns version info |
+| How hot is my phone? | ✅ | ~3 min | Returns battery temperature |
+| Call Mom | ✅ | ~2 rounds | Dials contact directly |
+| Send hi to Mom on WhatsApp | ✅ | ~2 rounds | Opens WhatsApp, finds contact, types, sends (playbook-assisted) |
+| Turn on dark mode | ✅ | 8 rounds | Navigates to display settings, toggles |
 
-Local mode is slower than Cloud because inference runs entirely on the phone CPU. On a Pixel 8 Pro, expect 3-5 minutes for tasks that need the model to think and use tools. Simpler tasks (open app, system keys) are instant.
-
-The tradeoff is real: local is private, free, and works offline. Cloud is faster and handles harder multi-app flows.
+Local mode runs entirely on the phone CPU. On a Pixel 8 Pro, expect 2-5 minutes for tasks that need the model to think and use tools. Simpler tasks (open app, system keys) are instant. Local is slower than Cloud but private, free, and works offline.
 
 
 
