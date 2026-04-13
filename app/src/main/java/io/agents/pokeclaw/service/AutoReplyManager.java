@@ -202,6 +202,27 @@ public class AutoReplyManager {
         syncForegroundNotification();
     }
 
+    /**
+     * Debug-only helper so we can exercise the exact same auto-reply pipeline
+     * without needing a second physical sender device.
+     */
+    public void debugSimulateIncomingMessage(String appName, String sender, String message, boolean ensureTargetEnabled) {
+        String normalizedApp = normalizeAppName(appName);
+        String packageName = resolvePackageName(normalizedApp);
+        if (packageName == null) {
+            normalizedApp = "WhatsApp";
+            packageName = "com.whatsapp";
+        }
+
+        if (ensureTargetEnabled) {
+            addTarget(sender, normalizedApp);
+            setEnabled(true);
+        }
+
+        XLog.i(TAG, "Debug-simulating incoming message from " + sender + " on " + normalizedApp + ": '" + message + "'");
+        onNotificationReceived(packageName, sender, message);
+    }
+
     public void clearContacts() {
         monitoredTargets.clear();
         syncForegroundNotification();

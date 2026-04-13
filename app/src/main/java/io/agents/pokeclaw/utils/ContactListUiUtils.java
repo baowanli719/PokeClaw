@@ -25,6 +25,18 @@ import io.agents.pokeclaw.service.ClawAccessibilityService;
  */
 public final class ContactListUiUtils {
     private static final String TAG = "ContactListUiUtils";
+    private static final String[] CLOSE_HINTS = {
+        "close", "dismiss", "cancel", "got it", "ok", "done",
+        "關閉", "关闭", "取消", "知道了", "確定", "确定",
+        "cerrar", "fermer", "schließen", "닫기", "閉じる", "закрыть", "fechar"
+    };
+
+    private enum SearchAttemptResult {
+        FOUND,
+        NO_MATCH,
+        SEARCH_UI_MISSING,
+        TYPE_FAILED
+    }
 
     private ContactListUiUtils() {}
 
@@ -118,8 +130,26 @@ public final class ContactListUiUtils {
         int maxScrolls,
         long settleMs
     ) throws InterruptedException {
-        if (trySearchAndClick(service, rawQuery, normalizedAliases, digitAliases, settleMs)) {
-            return true;
+        for (int recoveryAttempt = 0; recoveryAttempt < 3; recoveryAttempt++) {
+            SearchAttemptResult searchResult = trySearchAndClick(service, rawQuery, normalizedAliases, digitAliases, settleMs);
+            if (searchResult == SearchAttemptResult.FOUND) {
+                return true;
+            }
+            if (searchResult == SearchAttemptResult.NO_MATCH) {
+                break;
+            }
+
+            XLog.i(TAG, "searchOrScrollAndFindAndClick: recovering from " + searchResult + " attempt=" + (recoveryAttempt + 1));
+            String activePackage = activePackageName(service);
+            if (activePackage == null || activePackage.isEmpty()) {
+                break;
+            }
+
+            service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
+            Thread.sleep(Math.max(settleMs, 700L));
+            if (!prepareForContactLookup(service, activePackage, 2, settleMs)) {
+                break;
+            }
         }
         return scrollAndFindAndClick(service, normalizedAliases, digitAliases, maxScrolls, settleMs);
     }
@@ -196,7 +226,7 @@ public final class ContactListUiUtils {
         }
     }
 
-    private static boolean trySearchAndClick(
+    private static SearchAttemptResult trySearchAndClick(
         ClawAccessibilityService service,
         String rawQuery,
         Set<String> normalizedAliases,
@@ -205,15 +235,17 @@ public final class ContactListUiUtils {
     ) throws InterruptedException {
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (root == null) {
-            return false;
+            return SearchAttemptResult.SEARCH_UI_MISSING;
         }
 
         AccessibilityNodeInfo searchField = UiActionMatchUtils.findBestSearchField(root);
+        boolean tappedSearchAction = false;
         if (searchField == null) {
             AccessibilityNodeInfo searchAction = UiActionMatchUtils.findBestSearchAction(root);
             if (searchAction != null) {
                 boolean clicked = service.clickNode(searchAction);
                 XLog.i(TAG, "trySearchAndClick: tapped search action, clicked=" + clicked);
+                tappedSearchAction = clicked;
                 if (clicked) {
                     Thread.sleep(Math.max(settleMs, 500L));
                     root = service.getRootInActiveWindow();
@@ -224,12 +256,12 @@ public final class ContactListUiUtils {
 
         if (searchField == null) {
             XLog.i(TAG, "trySearchAndClick: no search field available");
-            return false;
+            return tappedSearchAction ? SearchAttemptResult.SEARCH_UI_MISSING : SearchAttemptResult.NO_MATCH;
         }
 
         if (!setText(searchField, rawQuery)) {
             XLog.i(TAG, "trySearchAndClick: failed to type query into search field");
-            return false;
+            return SearchAttemptResult.TYPE_FAILED;
         }
 
         Thread.sleep(Math.max(settleMs, 600L));
@@ -238,11 +270,19 @@ public final class ContactListUiUtils {
         AccessibilityNodeInfo bestMatch = findBestVisibleResultNode(root, normalizedAliases, digitAliases);
         if (bestMatch != null) {
             XLog.i(TAG, "trySearchAndClick: matched filtered result text=" + bestMatch.getText() + " desc=" + bestMatch.getContentDescription());
-            return service.clickNode(bestMatch);
+            return service.clickNode(bestMatch) ? SearchAttemptResult.FOUND : SearchAttemptResult.NO_MATCH;
         }
 
         XLog.i(TAG, "trySearchAndClick: no filtered result matched query");
-        return false;
+        return SearchAttemptResult.NO_MATCH;
+    }
+
+    private static String activePackageName(ClawAccessibilityService service) {
+        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        if (root == null || root.getPackageName() == null) {
+            return null;
+        }
+        return root.getPackageName().toString();
     }
 
     private static boolean setText(AccessibilityNodeInfo node, String text) {
@@ -286,7 +326,6 @@ public final class ContactListUiUtils {
         if (root == null) return false;
 
         if (UiActionMatchUtils.findBestSearchField(root) != null) return true;
-        if (UiActionMatchUtils.findBestSearchAction(root) != null) return true;
 
         int[] metrics = new int[3];
         collectVisibleListSignals(root, metrics);
@@ -305,6 +344,114 @@ public final class ContactListUiUtils {
         }
     }
 
+    private static boolean dismissBlockingOverlay(
+        ClawAccessibilityService service,
+        AccessibilityNodeInfo root,
+        long settleMs
+    ) throws InterruptedException {
+        AccessibilityNodeInfo closeAction = findBlockingOverlayCloseAction(root);
+        if (closeAction == null) {
+            return false;
+        }
+        boolean clicked = service.clickNode(closeAction);
+        XLog.i(TAG, "dismissBlockingOverlay: close action clicked=" + clicked);
+        if (clicked) {
+            Thread.sleep(Math.max(settleMs, 500L));
+        }
+        return clicked;
+    }
+
+    private static AccessibilityNodeInfo findBlockingOverlayCloseAction(AccessibilityNodeInfo root) {
+        if (root == null) return null;
+
+        Rect screenBounds = new Rect();
+        root.getBoundsInScreen(screenBounds);
+        if (screenBounds.isEmpty()) return null;
+
+        Candidate best = new Candidate();
+        collectCloseCandidates(root, screenBounds, best);
+        return best.score >= 70 ? best.node : null;
+    }
+
+    private static void collectCloseCandidates(
+        AccessibilityNodeInfo node,
+        Rect screenBounds,
+        Candidate best
+    ) {
+        if (node == null || !node.isVisibleToUser() || !node.isEnabled()) return;
+
+        int score = scoreCloseCandidate(node, screenBounds);
+        if (score > best.score) {
+            best.score = score;
+            best.node = node;
+        }
+
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                collectCloseCandidates(child, screenBounds, best);
+            }
+        }
+    }
+
+    private static int scoreCloseCandidate(AccessibilityNodeInfo node, Rect screenBounds) {
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (bounds.isEmpty() || bounds.width() <= 0 || bounds.height() <= 0) {
+            return Integer.MIN_VALUE;
+        }
+
+        if (bounds.top > screenBounds.top + (int) (screenBounds.height() * 0.45f)) {
+            return Integer.MIN_VALUE;
+        }
+
+        String viewId = node.getViewIdResourceName();
+        String className = node.getClassName() != null ? node.getClassName().toString() : "";
+        CharSequence text = node.getText();
+        CharSequence desc = node.getContentDescription();
+
+        boolean actionable = node.isClickable() || node.isLongClickable();
+        if (!actionable) {
+            return Integer.MIN_VALUE;
+        }
+
+        int score = 10;
+        if (viewId != null && (viewId.toLowerCase().contains("close") || viewId.toLowerCase().contains("dismiss"))) {
+            score += 100;
+        }
+        if (matchesCloseHint(text) || matchesCloseHint(desc)) {
+            score += 90;
+        }
+        if (className.contains("ImageButton") || className.contains("ImageView")) {
+            score += 20;
+        }
+        if (bounds.right >= screenBounds.right - (int) (screenBounds.width() * 0.1f)) {
+            score += 18;
+        }
+        if (bounds.top <= screenBounds.top + (int) (screenBounds.height() * 0.2f)) {
+            score += 14;
+        }
+        if (bounds.width() <= screenBounds.width() * 0.25f && bounds.height() <= screenBounds.height() * 0.15f) {
+            score += 12;
+        }
+        return score;
+    }
+
+    private static boolean matchesCloseHint(CharSequence value) {
+        if (value == null || value.length() == 0) return false;
+        for (String hint : CLOSE_HINTS) {
+            if (UiTextMatchUtils.matchesRelaxed(value, hint)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final class Candidate {
+        private AccessibilityNodeInfo node;
+        private int score = Integer.MIN_VALUE;
+    }
+
     private static void collectVisibleListSignals(AccessibilityNodeInfo node, int[] metrics) {
         if (node == null) return;
 
@@ -312,12 +459,17 @@ public final class ContactListUiUtils {
             CharSequence text = node.getText();
             CharSequence desc = node.getContentDescription();
             String className = node.getClassName() != null ? node.getClassName().toString() : "";
+            boolean imageLike = className.contains("Image")
+                || className.contains("Photo")
+                || className.contains("Thumbnail");
             boolean rowLike = !node.isEditable()
                 && !className.contains("EditText")
+                && !imageLike
                 && !className.contains("Toolbar")
                 && !className.contains("ActionBar");
+            boolean hasUsableLabel = text != null && text.length() > 0;
 
-            if (rowLike && ((text != null && text.length() > 0) || (desc != null && desc.length() > 0))) {
+            if (rowLike && hasUsableLabel) {
                 metrics[0]++;
                 if (node.isClickable()) {
                     metrics[1]++;

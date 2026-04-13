@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Base64
 import io.agents.pokeclaw.agent.llm.ModelConfigRepository
+import io.agents.pokeclaw.service.AutoReplyManager
 import io.agents.pokeclaw.appViewModel
 import io.agents.pokeclaw.tool.ToolRegistry
 import io.agents.pokeclaw.utils.KVUtils
@@ -36,9 +37,14 @@ class DebugTaskReceiver : BroadcastReceiver() {
             decodeBase64Extra(intent, "params_b64"),
             intent.getStringExtra("params_json")?.trim()
         ).orEmpty()
+        val simulateMessage = intent.getStringExtra("simulate_message")?.trim().orEmpty()
         val task = intent.getStringExtra("task") ?: "open my camera"
         if (directTool.isNotEmpty()) {
             executeTool(intent, directTool, paramsJson)
+            return
+        }
+        if (simulateMessage.isNotEmpty()) {
+            simulateIncomingMessage(intent, simulateMessage)
             return
         }
 
@@ -127,6 +133,30 @@ class DebugTaskReceiver : BroadcastReceiver() {
             }
         } catch (e: Exception) {
             XLog.e("DebugTaskReceiver", "Failed to execute debug tool", e)
+        }
+    }
+
+    private fun simulateIncomingMessage(intent: Intent, simulateMessage: String) {
+        try {
+            val contact = intent.getStringExtra("simulate_contact")?.trim().orEmpty()
+            if (contact.isEmpty()) {
+                XLog.w("DebugTaskReceiver", "simulate_message ignored because simulate_contact is empty")
+                return
+            }
+            val app = intent.getStringExtra("simulate_app")?.trim().orEmpty().ifEmpty { "WhatsApp" }
+            val ensureTargetEnabled = intent.getBooleanExtra("simulate_enable", true)
+            XLog.i(
+                "DebugTaskReceiver",
+                "Simulating incoming message: contact=$contact app=$app ensureTargetEnabled=$ensureTargetEnabled message='$simulateMessage'"
+            )
+            AutoReplyManager.getInstance().debugSimulateIncomingMessage(
+                app,
+                contact,
+                simulateMessage,
+                ensureTargetEnabled,
+            )
+        } catch (e: Exception) {
+            XLog.e("DebugTaskReceiver", "Failed to simulate incoming message", e)
         }
     }
 
