@@ -41,7 +41,7 @@ object LocalModelRuntime {
         modelPath: String,
         preferCpu: Boolean = false,
     ): LocalEngineLease {
-        val shouldUseCpu = preferCpu || KVUtils.getLocalBackendPreference().equals("CPU", ignoreCase = true)
+        val shouldUseCpu = LocalBackendHealth.shouldForceCpu(preferCpu)
         if (shouldUseCpu) {
             val engine = EngineHolder.getOrCreate(modelPath, context.cacheDir.path, Backend.CPU())
             return LocalEngineLease(engine = engine, backendLabel = "CPU")
@@ -53,12 +53,12 @@ object LocalModelRuntime {
         } catch (e: Exception) {
             if (!isGpuBackendFailure(e)) throw e
             XLog.w(TAG, "GPU runtime failed for $modelPath, retrying on CPU: ${e.message}")
+            LocalBackendHealth.noteRecoverableGpuFailure(modelPath, e)
             forceCpuEngine(context, modelPath)
         }
     }
 
     fun forceCpuEngine(context: Context, modelPath: String): LocalEngineLease {
-        KVUtils.setLocalBackendPreference("CPU")
         resetSharedEngine()
         val engine = EngineHolder.getOrCreate(modelPath, context.cacheDir.path, Backend.CPU())
         return LocalEngineLease(engine = engine, backendLabel = "CPU")
@@ -105,6 +105,7 @@ object LocalModelRuntime {
 
                 if (!forceCpu && isGpuBackendFailure(e)) {
                     XLog.w(TAG, "openConversation: GPU path failed, forcing CPU for $modelPath")
+                    LocalBackendHealth.noteRecoverableGpuFailure(modelPath, e)
                     forceCpuEngine(context, modelPath)
                     forceCpu = true
                 } else if (attempt == DEFAULT_RESET_ATTEMPT) {

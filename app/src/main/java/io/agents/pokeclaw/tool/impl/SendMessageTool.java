@@ -12,6 +12,7 @@ import io.agents.pokeclaw.service.ClawAccessibilityService;
 import io.agents.pokeclaw.tool.BaseTool;
 import io.agents.pokeclaw.tool.ToolParameter;
 import io.agents.pokeclaw.tool.ToolResult;
+import io.agents.pokeclaw.utils.ContactListUiUtils;
 import io.agents.pokeclaw.utils.UiActionMatchUtils;
 import io.agents.pokeclaw.utils.ContactMatchUtils;
 import io.agents.pokeclaw.utils.XLog;
@@ -100,13 +101,9 @@ public class SendMessageTool extends BaseTool {
             } else {
                 // Navigate to chat list and find contact
                 XLog.i(TAG, "Step 3: Not in chatroom, navigating to " + contact);
-                service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
-                Thread.sleep(500);
-                service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
-                Thread.sleep(1500);
-                service.openApp(packageName);
-                Thread.sleep(2000);
-                waitForActiveWindow(service, packageName, 5000);
+                if (!ContactListUiUtils.prepareForContactLookup(service, packageName, 4, 1200)) {
+                    return ToolResult.error("Could not reach a searchable " + app + " chat list.");
+                }
 
                 if (!findAndTapContact(service, contact)) {
                     return ToolResult.error("Could not find '" + contact + "' in " + app + " chat list.");
@@ -133,7 +130,7 @@ public class SendMessageTool extends BaseTool {
             Thread.sleep(500);
 
             // Step 5: Tap send (by desc) or press Enter as fallback
-            if (!tapSendOrEnter(service)) {
+            if (!tapSendOrEnter(service, message)) {
                 return ToolResult.error("Could not find send button.");
             }
             XLog.i(TAG, "Step 5: Sent!");
@@ -210,51 +207,7 @@ public class SendMessageTool extends BaseTool {
     private boolean findAndTapContact(ClawAccessibilityService service, String contact) throws InterruptedException {
         java.util.LinkedHashSet<String> normalizedAliases = ContactMatchUtils.buildNormalizedAliases(contact);
         java.util.LinkedHashSet<String> digitAliases = ContactMatchUtils.buildDigitAliases(contact);
-
-        for (int attempt = 0; attempt < 2; attempt++) {
-            AccessibilityNodeInfo root = service.getRootInActiveWindow();
-            if (root == null) continue;
-
-            // Collect ALL text nodes in the tree
-            List<AccessibilityNodeInfo> matches = new ArrayList<>();
-            collectNodesWithText(root, normalizedAliases, digitAliases, matches);
-            XLog.i(TAG, "findAndTapContact: attempt " + attempt + " found " + matches.size() + " matches for '" + contact + "'");
-
-            // Prefer nodes with actual text (not just contentDescription) — these are the chat list entries
-            // Sort: text matches first, then desc matches
-            AccessibilityNodeInfo bestMatch = null;
-            for (AccessibilityNodeInfo node : matches) {
-                if (ContactMatchUtils.matchesCandidate(
-                    node.getText() != null ? node.getText().toString() : null,
-                    normalizedAliases,
-                    digitAliases
-                )) {
-                    bestMatch = node; // Text match = best
-                    break;
-                }
-                if (bestMatch == null) bestMatch = node; // Fallback to first desc match
-            }
-            if (bestMatch != null) {
-                XLog.i(TAG, "findAndTapContact: clicking text=" + bestMatch.getText() + " desc=" + bestMatch.getContentDescription());
-                boolean clicked = service.clickNode(bestMatch);
-                if (clicked) return true;
-            }
-
-            // Scroll down and retry
-            if (attempt == 0) {
-                XLog.i(TAG, "findAndTapContact: scrolling to find more");
-                // Generic scroll: swipe from 70% to 30% of a 2400-height screen
-                // These are relative ratios that work on any screen size
-                Rect rootBounds = new Rect();
-                root.getBoundsInScreen(rootBounds);
-                int centerX = rootBounds.centerX();
-                int fromY = rootBounds.top + (int)(rootBounds.height() * 0.7);
-                int toY = rootBounds.top + (int)(rootBounds.height() * 0.3);
-                service.performSwipe(centerX, fromY, centerX, toY, 300);
-                Thread.sleep(1000);
-            }
-        }
-        return false;
+        return ContactListUiUtils.searchOrScrollAndFindAndClick(service, contact, normalizedAliases, digitAliases, 12, 800);
     }
 
     /**
@@ -353,7 +306,7 @@ public class SendMessageTool extends BaseTool {
      * 2. If multiple matches, pick the one near the bottom-right (typical send button position)
      * 3. Fallback: press Enter key without leaving the current chat
      */
-    private boolean tapSendOrEnter(ClawAccessibilityService service) throws InterruptedException {
+    private boolean tapSendOrEnter(ClawAccessibilityService service, String expectedMessage) throws InterruptedException {
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (root == null) return false;
 
@@ -362,21 +315,64 @@ public class SendMessageTool extends BaseTool {
         if (sendNode != null) {
             boolean clicked = service.clickNode(sendNode);
             XLog.i(TAG, "tapSendOrEnter: tapped structural send candidate, clicked=" + clicked);
-            if (clicked) return true;
+            if (didMessageLeaveComposer(service, expectedMessage, "candidate")) return true;
         }
 
         // Fallback: press Enter without dismissing the keyboard first.
         // Going "Back" here can blur the input or even leave the chat screen in some apps.
         XLog.i(TAG, "tapSendOrEnter: no send button found, pressing Enter directly");
         try {
-            return service.sendKeyEvent(android.view.KeyEvent.KEYCODE_ENTER);
+            service.sendKeyEvent(android.view.KeyEvent.KEYCODE_ENTER);
+            return didMessageLeaveComposer(service, expectedMessage, "enter");
         } catch (Exception e) {
             XLog.w(TAG, "Enter key fallback failed", e);
         }
         return false;
     }
 
+    private boolean didMessageLeaveComposer(
+            ClawAccessibilityService service,
+            String expectedMessage,
+            String pathLabel
+    ) throws InterruptedException {
+        Thread.sleep(500);
+        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        if (root == null) {
+            XLog.i(TAG, "tapSendOrEnter: " + pathLabel + " verification root missing; treating as success");
+            return true;
+        }
+
+        AccessibilityNodeInfo composer = findBottomEditText(root);
+        if (composer == null) {
+            XLog.i(TAG, "tapSendOrEnter: " + pathLabel + " verification composer missing; treating as success");
+            return true;
+        }
+
+        CharSequence composerText = composer.getText();
+        String current = composerText != null ? composerText.toString().trim() : "";
+        String expected = expectedMessage != null ? expectedMessage.trim() : "";
+        XLog.i(TAG, "tapSendOrEnter: " + pathLabel + " verification composerText='" + current + "'");
+
+        if (current.isEmpty()) {
+            return true;
+        }
+
+        if (expected.isEmpty()) {
+            return !current.isEmpty();
+        }
+
+        return !current.equals(expected) && !current.contains(expected);
+    }
+
     private Rect findBottomEditTextBounds(AccessibilityNodeInfo root) {
+        AccessibilityNodeInfo bottom = findBottomEditText(root);
+        if (bottom == null) return null;
+        Rect bounds = new Rect();
+        bottom.getBoundsInScreen(bounds);
+        return bounds;
+    }
+
+    private AccessibilityNodeInfo findBottomEditText(AccessibilityNodeInfo root) {
         List<AccessibilityNodeInfo> editTexts = new ArrayList<>();
         collectEditTexts(root, editTexts);
         AccessibilityNodeInfo bottom = null;
@@ -389,10 +385,7 @@ public class SendMessageTool extends BaseTool {
                 bottom = node;
             }
         }
-        if (bottom == null) return null;
-        Rect bounds = new Rect();
-        bottom.getBoundsInScreen(bounds);
-        return bounds;
+        return bottom;
     }
 
 }

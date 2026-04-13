@@ -6,6 +6,7 @@ package io.agents.pokeclaw.tool.impl;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -71,23 +72,22 @@ public class InputTextTool extends BaseTool {
         String text = requireString(params, "text");
         String nodeId = optionalString(params, "node_id", "");
         boolean clearFirst = optionalBoolean(params, "clear_first", true);
+        int[] targetCoords = null;
 
         // If node_id provided, tap that node first to focus it
         if (!nodeId.isEmpty()) {
             nodeId = nodeId.replace("[", "").replace("]", "").trim();
-            int[] coords = service.getNodeCoordinates(nodeId);
-            if (coords == null) {
+            targetCoords = service.getNodeCoordinates(nodeId);
+            if (targetCoords == null) {
                 return ToolResult.error("Node " + nodeId + " not found. Call get_screen_info first to refresh node IDs.");
             }
-            service.performTap(coords[0], coords[1]);
+            service.performTap(targetCoords[0], targetCoords[1]);
             try { Thread.sleep(300); } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
         }
 
-        AccessibilityNodeInfo targetNode = service.getRootInActiveWindow() != null
-                ? findFocusedEditText(service.getRootInActiveWindow())
-                : null;
+        AccessibilityNodeInfo targetNode = waitForTargetEditable(service, targetCoords);
 
         if (targetNode == null) {
             return ToolResult.error("No target text field found" + (nodeId.isEmpty() ? "" : " after tapping node " + nodeId));
@@ -104,27 +104,19 @@ public class InputTextTool extends BaseTool {
 
         // Strategy 1: try ACTION_SET_TEXT (standard approach)
         // Note: ACTION_SET_TEXT overwrites existing text; for append mode we must concatenate
-        if (clearFirst) {
-            Bundle args = new Bundle();
-            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
-            if (targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-                return ToolResult.success("Input text: " + text);
-            }
-        } else {
-            // Append mode: read existing text + new text
-            CharSequence existing = targetNode.getText();
-            String newText = (existing != null ? existing.toString() : "") + text;
-            Bundle args = new Bundle();
-            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText);
-            if (targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-                return ToolResult.success("Appended text: " + text);
-            }
+        if (trySetTextWithRetries(targetNode, text, clearFirst)) {
+            return ToolResult.success(clearFirst ? "Input text: " + text : "Appended text: " + text);
         }
 
         // Strategy 2: paste via clipboard (better compatibility)
         boolean clipboardSet = setClipboardText(service, text);
         if (!clipboardSet) {
             return ToolResult.error("Failed to set clipboard text");
+        }
+
+        targetNode = waitForTargetEditable(service, targetCoords);
+        if (targetNode == null) {
+            return ToolResult.error("Failed to recover text field before clipboard paste");
         }
 
         if (clearFirst) {
@@ -164,6 +156,52 @@ public class InputTextTool extends BaseTool {
         node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, clearArgs);
     }
 
+    private boolean trySetTextWithRetries(AccessibilityNodeInfo node, String text, boolean clearFirst) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            CharSequence existing = node.getText();
+            String candidateText = clearFirst ? text : ((existing != null ? existing.toString() : "") + text);
+            Bundle args = new Bundle();
+            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, candidateText);
+            if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                return true;
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+            node.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        }
+        return false;
+    }
+
+    private AccessibilityNodeInfo waitForTargetEditable(ClawAccessibilityService service, int[] targetCoords) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            AccessibilityNodeInfo root = service.getRootInActiveWindow();
+            if (root == null) {
+                sleepShort();
+                continue;
+            }
+
+            AccessibilityNodeInfo focused = findFocusedEditText(root);
+            if (focused != null) {
+                return focused;
+            }
+
+            if (targetCoords != null) {
+                AccessibilityNodeInfo nearTarget = findEditableNearPoint(root, targetCoords[0], targetCoords[1]);
+                if (nearTarget != null) {
+                    return nearTarget;
+                }
+            }
+
+            sleepShort();
+        }
+        return null;
+    }
+
     private boolean setClipboardText(Context context, String text) {
         CountDownLatch latch = new CountDownLatch(1);
         boolean[] result = {false};
@@ -197,6 +235,38 @@ public class InputTextTool extends BaseTool {
         return findFirstEditable(root);
     }
 
+    private AccessibilityNodeInfo findEditableNearPoint(AccessibilityNodeInfo node, int x, int y) {
+        if (node == null) return null;
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        boolean editable = node.isEditable();
+        CharSequence className = node.getClassName();
+        boolean isEditText = className != null && className.toString().contains("EditText");
+        if ((editable || isEditText) && bounds.contains(x, y)) {
+            return node;
+        }
+
+        AccessibilityNodeInfo best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) continue;
+            AccessibilityNodeInfo candidate = findEditableNearPoint(child, x, y);
+            if (candidate != null) {
+                Rect candidateBounds = new Rect();
+                candidate.getBoundsInScreen(candidateBounds);
+                int dx = candidateBounds.centerX() - x;
+                int dy = candidateBounds.centerY() - y;
+                int distance = dx * dx + dy * dy;
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = candidate;
+                }
+            }
+        }
+        return best;
+    }
+
     private AccessibilityNodeInfo findFirstEditable(AccessibilityNodeInfo node) {
         if (node == null) return null;
         if (node.isEditable()) return node;
@@ -214,5 +284,13 @@ public class InputTextTool extends BaseTool {
             child.recycle();
         }
         return null;
+    }
+
+    private void sleepShort() {
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

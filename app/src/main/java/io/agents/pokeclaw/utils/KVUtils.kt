@@ -169,10 +169,21 @@ object KVUtils {
     private const val KEY_PENDING_ACCESSIBILITY_RETURN_AT = "KEY_PENDING_ACCESSIBILITY_RETURN_AT"
     private const val KEY_PENDING_NOTIFICATION_ACCESS_RETURN = "KEY_PENDING_NOTIFICATION_ACCESS_RETURN"
     private const val KEY_PENDING_NOTIFICATION_ACCESS_RETURN_AT = "KEY_PENDING_NOTIFICATION_ACCESS_RETURN_AT"
+    private const val KEY_ACCESSIBILITY_LAST_CONNECTED_AT = "KEY_ACCESSIBILITY_LAST_CONNECTED_AT"
+    private const val KEY_ACCESSIBILITY_LAST_DISCONNECTED_AT = "KEY_ACCESSIBILITY_LAST_DISCONNECTED_AT"
+    private const val KEY_NOTIFICATION_LISTENER_LAST_CONNECTED_AT = "KEY_NOTIFICATION_LISTENER_LAST_CONNECTED_AT"
+    private const val KEY_NOTIFICATION_LISTENER_LAST_DISCONNECTED_AT = "KEY_NOTIFICATION_LISTENER_LAST_DISCONNECTED_AT"
 
     fun markPendingAccessibilityReturn() {
         putBoolean(KEY_PENDING_ACCESSIBILITY_RETURN, true)
         putLong(KEY_PENDING_ACCESSIBILITY_RETURN_AT, System.currentTimeMillis())
+    }
+
+    fun hasPendingAccessibilityReturn(maxAgeMs: Long = 120_000L): Boolean {
+        val pending = getBoolean(KEY_PENDING_ACCESSIBILITY_RETURN, false)
+        val requestedAt = getLong(KEY_PENDING_ACCESSIBILITY_RETURN_AT, 0L)
+        if (!pending || requestedAt <= 0L) return false
+        return System.currentTimeMillis() - requestedAt <= maxAgeMs
     }
 
     fun consumePendingAccessibilityReturn(maxAgeMs: Long = 120_000L): Boolean {
@@ -193,6 +204,13 @@ object KVUtils {
         putLong(KEY_PENDING_NOTIFICATION_ACCESS_RETURN_AT, System.currentTimeMillis())
     }
 
+    fun hasPendingNotificationAccessReturn(maxAgeMs: Long = 120_000L): Boolean {
+        val pending = getBoolean(KEY_PENDING_NOTIFICATION_ACCESS_RETURN, false)
+        val requestedAt = getLong(KEY_PENDING_NOTIFICATION_ACCESS_RETURN_AT, 0L)
+        if (!pending || requestedAt <= 0L) return false
+        return System.currentTimeMillis() - requestedAt <= maxAgeMs
+    }
+
     fun consumePendingNotificationAccessReturn(maxAgeMs: Long = 120_000L): Boolean {
         val pending = getBoolean(KEY_PENDING_NOTIFICATION_ACCESS_RETURN, false)
         val requestedAt = getLong(KEY_PENDING_NOTIFICATION_ACCESS_RETURN_AT, 0L)
@@ -206,12 +224,43 @@ object KVUtils {
         putLong(KEY_PENDING_NOTIFICATION_ACCESS_RETURN_AT, 0L)
     }
 
+    fun noteAccessibilityConnected() {
+        putLong(KEY_ACCESSIBILITY_LAST_CONNECTED_AT, System.currentTimeMillis())
+    }
+
+    fun noteAccessibilityDisconnected() {
+        putLong(KEY_ACCESSIBILITY_LAST_DISCONNECTED_AT, System.currentTimeMillis())
+    }
+
+    fun getAccessibilityLastConnectedAt(): Long = getLong(KEY_ACCESSIBILITY_LAST_CONNECTED_AT, 0L)
+
+    fun getAccessibilityLastDisconnectedAt(): Long = getLong(KEY_ACCESSIBILITY_LAST_DISCONNECTED_AT, 0L)
+
+    fun noteNotificationListenerConnected() {
+        putLong(KEY_NOTIFICATION_LISTENER_LAST_CONNECTED_AT, System.currentTimeMillis())
+    }
+
+    fun noteNotificationListenerDisconnected() {
+        putLong(KEY_NOTIFICATION_LISTENER_LAST_DISCONNECTED_AT, System.currentTimeMillis())
+    }
+
+    fun getNotificationListenerLastConnectedAt(): Long =
+        getLong(KEY_NOTIFICATION_LISTENER_LAST_CONNECTED_AT, 0L)
+
+    fun getNotificationListenerLastDisconnectedAt(): Long =
+        getLong(KEY_NOTIFICATION_LISTENER_LAST_DISCONNECTED_AT, 0L)
+
     private const val KEY_LLM_API_KEY = "KEY_LLM_API_KEY"
     private const val KEY_LLM_BASE_URL = "KEY_LLM_BASE_URL"
     private const val KEY_LLM_MODEL_NAME = "KEY_LLM_MODEL_NAME"
     private const val KEY_LLM_PROVIDER = "KEY_LLM_PROVIDER"
     private const val KEY_LOCAL_MODEL_PATH = "KEY_LOCAL_MODEL_PATH"
     private const val KEY_LOCAL_BACKEND_PREFERENCE = "KEY_LOCAL_BACKEND_PREFERENCE"
+    private const val KEY_LOCAL_CPU_SAFE_DEVICE = "KEY_LOCAL_CPU_SAFE_DEVICE"
+    private const val KEY_LOCAL_CPU_SAFE_REASON = "KEY_LOCAL_CPU_SAFE_REASON"
+    private const val KEY_PENDING_LOCAL_GPU_INIT_DEVICE = "KEY_PENDING_LOCAL_GPU_INIT_DEVICE"
+    private const val KEY_PENDING_LOCAL_GPU_INIT_MODEL = "KEY_PENDING_LOCAL_GPU_INIT_MODEL"
+    private const val KEY_PENDING_LOCAL_GPU_INIT_AT = "KEY_PENDING_LOCAL_GPU_INIT_AT"
 
     fun getLlmApiKey(): String = getString(KEY_LLM_API_KEY, "")
     fun setLlmApiKey(value: String) = putString(KEY_LLM_API_KEY, value)
@@ -231,6 +280,26 @@ object KVUtils {
     fun setLocalModelPath(value: String) = putString(KEY_LOCAL_MODEL_PATH, value)
     fun getLocalBackendPreference(): String = getString(KEY_LOCAL_BACKEND_PREFERENCE, "")
     fun setLocalBackendPreference(value: String) = putString(KEY_LOCAL_BACKEND_PREFERENCE, value)
+    fun getLocalCpuSafeDevice(): String = getString(KEY_LOCAL_CPU_SAFE_DEVICE, "")
+    fun setLocalCpuSafeDevice(value: String) = putString(KEY_LOCAL_CPU_SAFE_DEVICE, value)
+    fun getLocalCpuSafeReason(): String = getString(KEY_LOCAL_CPU_SAFE_REASON, "")
+    fun setLocalCpuSafeReason(value: String) = putString(KEY_LOCAL_CPU_SAFE_REASON, value)
+    fun clearLocalCpuSafeMode() {
+        remove(KEY_LOCAL_CPU_SAFE_DEVICE, KEY_LOCAL_CPU_SAFE_REASON)
+    }
+    fun getPendingLocalGpuInitDevice(): String = getString(KEY_PENDING_LOCAL_GPU_INIT_DEVICE, "")
+    fun setPendingLocalGpuInitDevice(value: String) = putString(KEY_PENDING_LOCAL_GPU_INIT_DEVICE, value)
+    fun getPendingLocalGpuInitModel(): String = getString(KEY_PENDING_LOCAL_GPU_INIT_MODEL, "")
+    fun setPendingLocalGpuInitModel(value: String) = putString(KEY_PENDING_LOCAL_GPU_INIT_MODEL, value)
+    fun getPendingLocalGpuInitAt(): Long = getLong(KEY_PENDING_LOCAL_GPU_INIT_AT, 0L)
+    fun setPendingLocalGpuInitAt(value: Long) = putLong(KEY_PENDING_LOCAL_GPU_INIT_AT, value)
+    fun clearPendingLocalGpuInit() {
+        remove(
+            KEY_PENDING_LOCAL_GPU_INIT_DEVICE,
+            KEY_PENDING_LOCAL_GPU_INIT_MODEL,
+            KEY_PENDING_LOCAL_GPU_INIT_AT,
+        )
+    }
 
     // ==================== Independent Default Models ====================
     // Local and Cloud each have their own default model config.

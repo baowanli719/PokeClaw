@@ -58,6 +58,13 @@ public class ClawAccessibilityService extends AccessibilityService {
      */
     public static boolean isEnabledInSettings(Context context) {
         try {
+            int accessibilityEnabled = Settings.Secure.getInt(
+                    context.getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED,
+                    0);
+            if (accessibilityEnabled != 1) {
+                return false;
+            }
             String enabledServices = Settings.Secure.getString(
                     context.getContentResolver(),
                     Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
@@ -113,7 +120,9 @@ public class ClawAccessibilityService extends AccessibilityService {
     public void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
+        KVUtils.INSTANCE.noteAccessibilityConnected();
         XLog.i(TAG, "Accessibility service connected");
+        ForegroundService.Companion.syncToBackgroundState(this);
         maybeReturnToAppAfterPermissionFlow();
     }
 
@@ -134,13 +143,16 @@ public class ClawAccessibilityService extends AccessibilityService {
     @Override
     public void onInterrupt() {
         XLog.w(TAG, "Accessibility service interrupted");
+        ForegroundService.Companion.syncToBackgroundState(this);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         instance = null;
+        KVUtils.INSTANCE.noteAccessibilityDisconnected();
         XLog.i(TAG, "Accessibility service destroyed");
+        ForegroundService.Companion.syncToBackgroundState(this);
     }
 
     /**
@@ -318,13 +330,20 @@ public class ClawAccessibilityService extends AccessibilityService {
             return false;
         }
         if (node.isClickable()) {
-            return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            boolean clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            if (clicked) {
+                return true;
+            }
+            XLog.w(TAG, "ACTION_CLICK returned false, falling back to parent/tap");
         }
         // Try clicking the parent if the node itself is not clickable
         AccessibilityNodeInfo parent = node.getParent();
         while (parent != null) {
             if (parent.isClickable()) {
-                return parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                boolean clicked = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                if (clicked) {
+                    return true;
+                }
             }
             parent = parent.getParent();
         }

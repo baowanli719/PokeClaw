@@ -4,6 +4,7 @@
 package io.agents.pokeclaw
 
 import io.agents.pokeclaw.agent.DefaultAgentService
+import io.agents.pokeclaw.agent.llm.LocalBackendHealth
 import io.agents.pokeclaw.base.BaseApp
 import io.agents.pokeclaw.channel.ChannelManager
 import io.agents.pokeclaw.tool.ToolRegistry
@@ -32,6 +33,7 @@ class ClawApplication : BaseApp() {
         registerNetworkCallback()
         appViewModelInstance = getAppViewModelProvider()[AppViewModel::class.java]
         KVUtils.init(this)
+        LocalBackendHealth.recoverPendingGpuCrashIfNeeded()
         ToolRegistry.getInstance().registerAllTools(ToolRegistry.DeviceType.MOBILE)
         io.agents.pokeclaw.agent.skill.SkillRegistry.loadBuiltInSkills()
         io.agents.pokeclaw.agent.PlaybookManager.loadAll(this)

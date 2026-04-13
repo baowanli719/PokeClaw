@@ -67,13 +67,24 @@ object EngineHolder {
                 maxNumTokens = 8192,
                 cacheDir = cacheDir
             )
+            if (backend is Backend.GPU) {
+                LocalBackendHealth.markGpuInitStarted(modelPath)
+            }
             val newEngine = Engine(engineConfig).also { it.initialize() }
+            if (backend is Backend.GPU) {
+                LocalBackendHealth.markGpuInitFinished()
+            }
             engine = newEngine
             currentModelPath = modelPath
             currentBackendLabel = backendLabel(backend)
             XLog.i(TAG, "getOrCreate: engine ready for $modelPath (${currentBackendLabel})")
             newEngine
         } catch (e: Exception) {
+            if (backend is Backend.GPU) {
+                LocalBackendHealth.noteRecoverableGpuFailure(modelPath, e)
+            } else {
+                LocalBackendHealth.markGpuInitFinished()
+            }
             XLog.e(TAG, "getOrCreate: failed to create engine for $modelPath", e)
             throw e
         }
