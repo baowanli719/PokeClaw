@@ -8,10 +8,12 @@ import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import io.agents.pokeclaw.AppCapabilityCoordinator;
 import io.agents.pokeclaw.tool.ToolRegistry;
 import io.agents.pokeclaw.tool.ToolResult;
 import io.agents.pokeclaw.tool.impl.SendMessageTool;
 import io.agents.pokeclaw.ClawApplication;
+import io.agents.pokeclaw.ServiceBindingState;
 import io.agents.pokeclaw.utils.ChatNoiseFilterUtils;
 import io.agents.pokeclaw.utils.ContactListUiUtils;
 import io.agents.pokeclaw.utils.ContactMatchUtils;
@@ -248,6 +250,7 @@ public class AutoReplyManager {
         if (!enabled) return;
         if (!monitoredApps.contains(packageName)) return;
         if (title.isEmpty() || text.isEmpty()) return;
+        if (!isAccessibilityHealthyForReply()) return;
 
         XLog.d(TAG, "Notification from " + packageName + ": title='" + title + "' text='" + text + "'");
         handleIncomingMessage(packageName, title, text);
@@ -259,6 +262,7 @@ public class AutoReplyManager {
      */
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (!enabled) return;
+        if (!isAccessibilityHealthyForReply()) return;
 
         // Skip if NotificationListenerService is active — it's more reliable
         if (ClawNotificationListener.isConnected()) return;
@@ -280,6 +284,18 @@ public class AutoReplyManager {
 
         XLog.d(TAG, "[Fallback] Notification from " + packageName + ": title='" + title + "' text='" + text + "'");
         handleIncomingMessage(packageName, title, text);
+    }
+
+    private boolean isAccessibilityHealthyForReply() {
+        ClawApplication app = ClawApplication.Companion.getInstance();
+        if (app == null) return false;
+        ServiceBindingState state = AppCapabilityCoordinator.INSTANCE.accessibilityState(app);
+        if (state == ServiceBindingState.READY || state == ServiceBindingState.CONNECTING) {
+            return true;
+        }
+        XLog.w(TAG, "Skipping auto-reply because accessibility is " + state);
+        syncForegroundNotification();
+        return false;
     }
 
     private void handleIncomingMessage(String packageName, String title, String text) {
