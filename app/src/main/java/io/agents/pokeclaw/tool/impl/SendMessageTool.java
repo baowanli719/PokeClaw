@@ -12,6 +12,7 @@ import io.agents.pokeclaw.service.ClawAccessibilityService;
 import io.agents.pokeclaw.tool.BaseTool;
 import io.agents.pokeclaw.tool.ToolParameter;
 import io.agents.pokeclaw.tool.ToolResult;
+import io.agents.pokeclaw.utils.ContactListUiUtils;
 import io.agents.pokeclaw.utils.UiActionMatchUtils;
 import io.agents.pokeclaw.utils.ContactMatchUtils;
 import io.agents.pokeclaw.utils.XLog;
@@ -210,51 +211,7 @@ public class SendMessageTool extends BaseTool {
     private boolean findAndTapContact(ClawAccessibilityService service, String contact) throws InterruptedException {
         java.util.LinkedHashSet<String> normalizedAliases = ContactMatchUtils.buildNormalizedAliases(contact);
         java.util.LinkedHashSet<String> digitAliases = ContactMatchUtils.buildDigitAliases(contact);
-
-        for (int attempt = 0; attempt < 2; attempt++) {
-            AccessibilityNodeInfo root = service.getRootInActiveWindow();
-            if (root == null) continue;
-
-            // Collect ALL text nodes in the tree
-            List<AccessibilityNodeInfo> matches = new ArrayList<>();
-            collectNodesWithText(root, normalizedAliases, digitAliases, matches);
-            XLog.i(TAG, "findAndTapContact: attempt " + attempt + " found " + matches.size() + " matches for '" + contact + "'");
-
-            // Prefer nodes with actual text (not just contentDescription) — these are the chat list entries
-            // Sort: text matches first, then desc matches
-            AccessibilityNodeInfo bestMatch = null;
-            for (AccessibilityNodeInfo node : matches) {
-                if (ContactMatchUtils.matchesCandidate(
-                    node.getText() != null ? node.getText().toString() : null,
-                    normalizedAliases,
-                    digitAliases
-                )) {
-                    bestMatch = node; // Text match = best
-                    break;
-                }
-                if (bestMatch == null) bestMatch = node; // Fallback to first desc match
-            }
-            if (bestMatch != null) {
-                XLog.i(TAG, "findAndTapContact: clicking text=" + bestMatch.getText() + " desc=" + bestMatch.getContentDescription());
-                boolean clicked = service.clickNode(bestMatch);
-                if (clicked) return true;
-            }
-
-            // Scroll down and retry
-            if (attempt == 0) {
-                XLog.i(TAG, "findAndTapContact: scrolling to find more");
-                // Generic scroll: swipe from 70% to 30% of a 2400-height screen
-                // These are relative ratios that work on any screen size
-                Rect rootBounds = new Rect();
-                root.getBoundsInScreen(rootBounds);
-                int centerX = rootBounds.centerX();
-                int fromY = rootBounds.top + (int)(rootBounds.height() * 0.7);
-                int toY = rootBounds.top + (int)(rootBounds.height() * 0.3);
-                service.performSwipe(centerX, fromY, centerX, toY, 300);
-                Thread.sleep(1000);
-            }
-        }
-        return false;
+        return ContactListUiUtils.scrollAndFindAndClick(service, normalizedAliases, digitAliases, 10, 800);
     }
 
     /**

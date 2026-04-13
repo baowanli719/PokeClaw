@@ -13,6 +13,7 @@ import io.agents.pokeclaw.tool.ToolResult;
 import io.agents.pokeclaw.tool.impl.SendMessageTool;
 import io.agents.pokeclaw.ClawApplication;
 import io.agents.pokeclaw.utils.ChatNoiseFilterUtils;
+import io.agents.pokeclaw.utils.ContactListUiUtils;
 import io.agents.pokeclaw.utils.ContactMatchUtils;
 import io.agents.pokeclaw.utils.UiActionMatchUtils;
 import io.agents.pokeclaw.utils.XLog;
@@ -372,26 +373,12 @@ public class AutoReplyManager {
                         Thread.sleep(2000);
                         root = svc.getRootInActiveWindow();
                         if (root != null) {
-                            List<AccessibilityNodeInfo> matches = new ArrayList<>();
-                            findNodesContainingText(root, normalizedAliases, digitAliases, matches);
-                            if (!matches.isEmpty()) {
-                                // Prefer nodes matched by getText (chat entry) over contentDescription (profile pic)
-                                AccessibilityNodeInfo best = matches.get(0);
-                                for (AccessibilityNodeInfo m : matches) {
-                                    if (ContactMatchUtils.matchesCandidate(
-                                        m.getText() != null ? m.getText().toString() : null,
-                                        normalizedAliases,
-                                        digitAliases
-                                    )) {
-                                        best = m;
-                                        break;
-                                    }
-                                }
-                                svc.clickNode(best);
+                            boolean clicked = ContactListUiUtils.scrollAndFindAndClick(svc, normalizedAliases, digitAliases, 10, 800);
+                            if (clicked) {
                                 XLog.i(TAG, "Tapped contact: " + finalContact);
                                 Thread.sleep(2000);
                                 navigatedToChat = waitForChatroom(svc, finalContact);
-                                logAutoReplyStep(finalTarget, "navigate-chat-result", "matches=" + matches.size() + ", verified=" + navigatedToChat);
+                                logAutoReplyStep(finalTarget, "navigate-chat-result", "clicked=true, verified=" + navigatedToChat);
                             } else {
                                 failAutoReply(finalTarget, incomingMessage, AutoReplyFailureStage.CHAT_NAVIGATION_FAILED,
                                     "Could not find " + finalContact + " in chat list", null);
