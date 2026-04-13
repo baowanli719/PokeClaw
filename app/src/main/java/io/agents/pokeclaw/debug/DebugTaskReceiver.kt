@@ -10,6 +10,7 @@ import android.util.Base64
 import io.agents.pokeclaw.agent.llm.LocalBackendHealth
 import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.service.AutoReplyManager
+import io.agents.pokeclaw.support.DebugReportManager
 import io.agents.pokeclaw.appViewModel
 import io.agents.pokeclaw.tool.ToolRegistry
 import io.agents.pokeclaw.utils.KVUtils
@@ -39,10 +40,15 @@ class DebugTaskReceiver : BroadcastReceiver() {
             intent.getStringExtra("params_json")?.trim()
         ).orEmpty()
         val backendAction = intent.getStringExtra("backend_action")?.trim().orEmpty()
+        val supportAction = intent.getStringExtra("support_action")?.trim().orEmpty()
         val simulateMessage = intent.getStringExtra("simulate_message")?.trim().orEmpty()
         val task = intent.getStringExtra("task") ?: "open my camera"
         if (backendAction.isNotEmpty()) {
             handleLocalBackendDebug(intent, backendAction)
+            return
+        }
+        if (supportAction.isNotEmpty()) {
+            handleSupportDebug(context, supportAction)
             return
         }
         if (directTool.isNotEmpty()) {
@@ -204,6 +210,25 @@ class DebugTaskReceiver : BroadcastReceiver() {
             }
         } catch (e: Exception) {
             XLog.e("DebugTaskReceiver", "Failed backend_action=$action", e)
+        }
+    }
+
+    private fun handleSupportDebug(context: Context, action: String) {
+        try {
+            when (action.lowercase()) {
+                "build_debug_report" -> {
+                    val output = DebugReportManager.buildReport(context)
+                    XLog.i(
+                        "DebugTaskReceiver",
+                        "Built debug report: ${output.absolutePath} (${output.length()} bytes)"
+                    )
+                }
+                else -> {
+                    XLog.w("DebugTaskReceiver", "Unknown support_action=$action")
+                }
+            }
+        } catch (e: Exception) {
+            XLog.e("DebugTaskReceiver", "Failed support_action=$action", e)
         }
     }
 
