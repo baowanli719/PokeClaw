@@ -10,6 +10,7 @@ import io.agents.pokeclaw.BuildConfig
 import io.agents.pokeclaw.agent.llm.LocalBackendHealth
 import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.service.AutoReplyManager
+import io.agents.pokeclaw.utils.AppLogStore
 import io.agents.pokeclaw.utils.KVUtils
 import java.io.File
 import java.io.FileInputStream
@@ -33,7 +34,9 @@ object DebugReportManager {
 
         ZipOutputStream(FileOutputStream(output)).use { zip ->
             addText(zip, "summary.txt", buildSummary(context))
+            addText(zip, "bug-report-template.txt", buildBugReportTemplate(context))
             collectLogcat().takeIf { it.isNotBlank() }?.let { addText(zip, "app-logcat.txt", it) }
+            addRecentAppLogs(zip, context)
             addRecentHttpLogs(zip, context.cacheDir)
         }
 
@@ -45,6 +48,7 @@ object DebugReportManager {
         val config = ModelConfigRepository.snapshot()
         val httpDir = File(context.cacheDir, "http_logs")
         val httpLogs = httpDir.listFiles()?.size ?: 0
+        val appLogs = AppLogStore.listLogFiles(context).size
         val autoReplyManager = AutoReplyManager.getInstance()
         val monitorTargets = autoReplyManager.monitoredTargets.joinToString(", ") { it.displayLabel }
         val cpuSafeAt = KVUtils.getLocalCpuSafeAt()
@@ -110,7 +114,34 @@ object DebugReportManager {
             appendLine("- Targets: ${monitorTargets.ifBlank { "(none)" }}")
             appendLine()
             appendLine("Artifacts")
+            appendLine("- App rolling logs present: $appLogs")
             appendLine("- HTTP log files present: $httpLogs")
+        }
+    }
+
+    private fun buildBugReportTemplate(context: Context): String {
+        return buildString {
+            appendLine("PokeClaw Bug Report Template")
+            appendLine()
+            appendLine("Attach this ZIP and fill in the blanks below:")
+            appendLine()
+            appendLine("- What happened:")
+            appendLine("- What you expected instead:")
+            appendLine("- Exact steps to reproduce:")
+            appendLine("- Does it happen every time, or only sometimes?")
+            appendLine("- Device model + ROM/build:")
+            appendLine("- App version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+            appendLine()
+            appendLine("If this looks device-specific and you have ADB available, add:")
+            appendLine("adb logcat -c")
+            appendLine("adb logcat -v time > pokeclaw-logcat.txt")
+            appendLine("# reproduce once, then stop with Ctrl+C")
+            appendLine("adb shell dumpsys activity top > pokeclaw-activity-top.txt")
+            appendLine("adb shell dumpsys activity services io.agents.pokeclaw > pokeclaw-services.txt")
+            appendLine()
+            appendLine("Open a new GitHub issue: https://github.com/agents-io/PokeClaw/issues/new")
+            appendLine("Built on: ${Date()}")
+            appendLine("Package: ${context.packageName}")
         }
     }
 
@@ -146,6 +177,13 @@ object DebugReportManager {
             ?: return
         for (file in files) {
             addFile(zip, "http_logs/${file.name}", file)
+        }
+    }
+
+    private fun addRecentAppLogs(zip: ZipOutputStream, context: Context) {
+        val files = AppLogStore.listLogFiles(context)
+        for (file in files) {
+            addFile(zip, "app_logs/${file.name}", file)
         }
     }
 

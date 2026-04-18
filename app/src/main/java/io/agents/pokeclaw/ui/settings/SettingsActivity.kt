@@ -374,6 +374,15 @@ class SettingsActivity : BaseActivity() {
         }
 
         aboutGroup.addMenuItem(
+            leadingIcon = android.R.drawable.ic_menu_send,
+            title = "Report a Bug",
+            onClick = { reportBug() },
+            showDivider = true
+        ).apply {
+            setTrailingText("GitHub + ZIP")
+        }
+
+        aboutGroup.addMenuItem(
             leadingIcon = android.R.drawable.ic_menu_upload,
             title = "Share Debug Report",
             onClick = { shareDebugReport() },
@@ -405,35 +414,138 @@ class SettingsActivity : BaseActivity() {
         }
     }
 
+    private fun reportBug() {
+        buildSupportBundle(
+            preparingToast = "Preparing bug report…"
+        ) { report ->
+            AlertDialog.show(
+                context = this@SettingsActivity,
+                title = "Bug report ready",
+                message = """
+                    ${report.name} is ready.
+
+                    Open GitHub Issue to file the bug now.
+                    If your browser or GitHub app makes attachment upload awkward, tap Share ZIP instead and send the report manually.
+                """.trimIndent(),
+                actionTitle = "Open GitHub Issue",
+                cancelTitle = "Share ZIP",
+                onAction = { openGitHubIssue(report) },
+                onCancel = {
+                    shareReportFile(
+                        report = report,
+                        chooserTitle = "Share bug report ZIP",
+                        subject = "PokeClaw bug report ${io.agents.pokeclaw.BuildConfig.VERSION_NAME}",
+                        body = """
+                            Attach this ZIP to your GitHub issue:
+                            https://github.com/agents-io/PokeClaw/issues/new
+                        """.trimIndent()
+                    )
+                }
+            )
+        }
+    }
+
     private fun shareDebugReport() {
+        buildSupportBundle(
+            preparingToast = "Preparing debug report…",
+        ) { report ->
+            shareReportFile(
+                report = report,
+                chooserTitle = "Share debug report",
+                subject = "PokeClaw debug report ${io.agents.pokeclaw.BuildConfig.VERSION_NAME}",
+                body = "Attach this debug report when reporting a PokeClaw issue."
+            )
+        }
+    }
+
+    private fun buildSupportBundle(
+        preparingToast: String,
+        onReportReady: (java.io.File) -> Unit,
+    ) {
         lifecycleScope.launch {
-            Toast.makeText(this@SettingsActivity, "Preparing debug report…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@SettingsActivity, preparingToast, Toast.LENGTH_SHORT).show()
             runCatching {
                 withContext(Dispatchers.IO) {
                     DebugReportManager.buildReport(this@SettingsActivity)
                 }
             }.onSuccess { report ->
-                val uri = FileProvider.getUriForFile(
-                    this@SettingsActivity,
-                    "${packageName}.fileprovider",
-                    report
-                )
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/zip"
-                    putExtra(Intent.EXTRA_SUBJECT, "PokeClaw debug report ${io.agents.pokeclaw.BuildConfig.VERSION_NAME}")
-                    putExtra(Intent.EXTRA_TEXT, "Attach this debug report when reporting a PokeClaw issue.")
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                try {
-                    startActivity(Intent.createChooser(intent, "Share debug report"))
-                } catch (e: ActivityNotFoundException) {
-                    Toast.makeText(this@SettingsActivity, "No app available to share the report", Toast.LENGTH_LONG).show()
-                }
+                onReportReady(report)
             }.onFailure { error ->
                 XLog.e("SettingsActivity", "Failed to build debug report", error)
                 Toast.makeText(this@SettingsActivity, "Failed to build debug report", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    private fun openGitHubIssue(report: java.io.File) {
+        val issueUri = "https://github.com/agents-io/PokeClaw/issues/new".toUri()
+            .buildUpon()
+            .appendQueryParameter(
+                "title",
+                "[Bug] ${Build.MANUFACTURER} ${Build.MODEL} - "
+            )
+            .appendQueryParameter("body", buildGitHubIssueBody(report))
+            .build()
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, issueUri))
+            Toast.makeText(
+                this,
+                "Attach ${report.name} to the GitHub issue after the page opens",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "No app available to open GitHub", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun buildGitHubIssueBody(report: java.io.File): String {
+        return """
+            ## What happened
+            -
+
+            ## What you expected
+            -
+
+            ## Exact steps to reproduce
+            1.
+            2.
+            3.
+
+            ## Device
+            - Manufacturer: ${Build.MANUFACTURER}
+            - Model: ${Build.MODEL}
+            - Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})
+
+            ## Attachments
+            - Attach this ZIP from PokeClaw: `${report.name}`
+            - If this looks device-specific and you have ADB available, also attach `adb logcat`
+
+            Generated by PokeClaw ${io.agents.pokeclaw.BuildConfig.VERSION_NAME}.
+        """.trimIndent()
+    }
+
+    private fun shareReportFile(
+        report: java.io.File,
+        chooserTitle: String,
+        subject: String,
+        body: String,
+    ) {
+        val uri = FileProvider.getUriForFile(
+            this@SettingsActivity,
+            "${packageName}.fileprovider",
+            report
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/zip"
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, body)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(Intent.createChooser(intent, chooserTitle))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this@SettingsActivity, "No app available to share the report", Toast.LENGTH_LONG).show()
         }
     }
 
