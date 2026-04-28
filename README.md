@@ -300,6 +300,12 @@ Every star helps more people find the project. Every issue helps shape the next 
 
 ## Changelog
 
+### v0.6.8 (2026-04-28)
+- **Stable public catch-up release.** This promotes the recent debug-report and local-model hardening work into a stable signed release so users can test one current APK instead of chasing debug prereleases.
+- **Model download storage is more reliable.** Fixed a device-side failure where the model download directory could be missing on some ROMs, causing downloads to fail with `ENOENT` before the `.litertlm` file could even be written.
+- **Bug reports are easier to act on.** `Settings -> About -> Report a Bug` generates a ZIP with app state, filtered logcat, rolling app logs, and recent HTTP logs for device-specific model, download, accessibility, and monitor failures.
+- **Release automation is cleaner.** Main-branch pushes now build debug artifacts without creating public debug prereleases, while public APK releases go through the signed tag workflow.
+
 ### v0.6.6 (2026-04-17)
 - **Stable release for the post-`0.6.4` bugfix line.** This ships the fixes that were only sitting in the `0.6.5` debug prerelease, so users no longer need to test a debug cut to get them.
 - **Launcher icon handling is fixed on themed / OEM launchers.** PokeClaw now ships a proper adaptive icon set, including round and monochrome resources, which fixes the mismatched icon treatment reported on Xiaomi launchers.

@@ -219,9 +219,30 @@ object LocalModelManager {
      * Get the directory where models are stored.
      */
     fun getModelDir(context: Context): File {
-        val dir = File(context.getExternalFilesDir(null), "models")
-        if (!dir.exists()) dir.mkdirs()
-        return dir
+        return resolveUsableModelDir(
+            externalRoot = context.getExternalFilesDir(null),
+            internalRoot = context.filesDir,
+        )
+    }
+
+    internal fun resolveUsableModelDir(externalRoot: File?, internalRoot: File): File {
+        val externalDir = externalRoot?.let { File(it, "models") }
+        if (externalDir != null && ensureDirectory(externalDir)) {
+            return externalDir
+        }
+
+        val internalDir = File(internalRoot, "models")
+        if (ensureDirectory(internalDir)) {
+            return internalDir
+        }
+
+        throw IllegalStateException(
+            "Could not create model storage directory at ${externalDir?.absolutePath ?: "(no external dir)"} or ${internalDir.absolutePath}"
+        )
+    }
+
+    private fun ensureDirectory(dir: File): Boolean {
+        return dir.isDirectory || dir.mkdirs() || dir.isDirectory
     }
 
     /**
@@ -285,7 +306,13 @@ object LocalModelManager {
         model: ModelInfo,
         callback: DownloadCallback
     ) {
-        val modelDir = getModelDir(context)
+        val modelDir = try {
+            getModelDir(context)
+        } catch (e: Exception) {
+            XLog.e(TAG, "Could not prepare model storage", e)
+            callback.onError("Could not prepare model storage: ${e.message}")
+            return
+        }
         val targetFile = File(modelDir, model.fileName)
         val tempFile = File(modelDir, "${model.fileName}.downloading")
         cleanupInvalidFiles(model, targetFile, tempFile)
