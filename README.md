@@ -303,6 +303,9 @@ Every star helps more people find the project. Every issue helps shape the next 
 ### v0.6.8 (2026-04-28)
 - **Stable public catch-up release.** This promotes the recent debug-report and local-model hardening work into a stable signed release so users can test one current APK instead of chasing debug prereleases.
 - **Model download storage is more reliable.** Fixed a device-side failure where the model download directory could be missing on some ROMs, causing downloads to fail with `ENOENT` before the `.litertlm` file could even be written.
+- **WhatsApp send-message is less likely to hit the wrong action.** The send-button matcher now requires either a clear send signal or a button positioned by the composer, which avoids treating top-bar call/video-call buttons as generic send candidates.
+- **Contact lookup handles blocking popups better.** The contact-search flow now attempts to dismiss obvious modal overlays before searching or scrolling the chat list.
+- **Foreground service coverage is stronger during tasks and monitoring.** PokeClaw now starts foreground status as soon as a task begins, and active monitor mode schedules the watchdog job so ROMs that aggressively kill services have a better recovery path.
 - **Bug reports are easier to act on.** `Settings -> About -> Report a Bug` generates a ZIP with app state, filtered logcat, rolling app logs, and recent HTTP logs for device-specific model, download, accessibility, and monitor failures.
 - **Release automation is cleaner.** Main-branch pushes now build debug artifacts without creating public debug prereleases, while public APK releases go through the signed tag workflow.
 

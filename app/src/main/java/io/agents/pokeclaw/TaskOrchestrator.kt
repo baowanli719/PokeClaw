@@ -134,6 +134,8 @@ class TaskOrchestrator(
             }
         }
 
+        ForegroundService.updateTaskStatus(ClawApplication.instance, "Preparing task...")
+
         // Tier 1: Deterministic routing
         val route = pipelineRouter.route(task)
         when (route) {

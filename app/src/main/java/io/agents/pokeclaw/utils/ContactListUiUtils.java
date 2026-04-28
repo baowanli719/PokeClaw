@@ -49,6 +49,9 @@ public final class ContactListUiUtils {
         int attempts = Math.min(Math.max(maxBacks, 1), 6);
         for (int attempt = 0; attempt <= attempts; attempt++) {
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
+            if (dismissBlockingOverlay(service, root, settleMs)) {
+                continue;
+            }
             if (isContactLookupReady(root)) {
                 XLog.i(TAG, "prepareForContactLookup: ready on attempt=" + attempt);
                 return true;
@@ -239,6 +242,10 @@ public final class ContactListUiUtils {
         }
 
         AccessibilityNodeInfo searchField = UiActionMatchUtils.findBestSearchField(root);
+        if (searchField == null && dismissBlockingOverlay(service, root, settleMs)) {
+            root = service.getRootInActiveWindow();
+            searchField = UiActionMatchUtils.findBestSearchField(root);
+        }
         boolean tappedSearchAction = false;
         if (searchField == null) {
             AccessibilityNodeInfo searchAction = UiActionMatchUtils.findBestSearchAction(root);
