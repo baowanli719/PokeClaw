@@ -84,6 +84,8 @@ PokeClaw already supports fully on-device automation with Gemma 4 and optional c
 
 ## Product Direction
 
+The internal product and engineering direction is tracked in [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md). In short: PokeClaw optimizes the generic Android agent harness first, not one-off prompt hacks for a single flaky task.
+
 PokeClaw is not just a chat app with a few phone-control tricks glued on top.
 
 At its core, it is becoming a **mobile agent harness**:

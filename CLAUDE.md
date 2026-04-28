@@ -1,9 +1,16 @@
 # PokeClaw — Project Rules
 
+## Read This First
+
+Before changing prompts, skills, task routing, local runtime, QA, or release behavior, read `PROJECT_DIRECTION.md`.
+
+The short version: PokeClaw is a generic Android mobile-agent harness, not a collection of hardcoded demo tasks. Prioritize runtime, hardware, storage, accessibility, foreground-service, install/signing, and QA-harness correctness before narrow prompt or workflow tuning.
+
 ## Project Files
 
 | File | What | When to update |
 |------|------|----------------|
+| `PROJECT_DIRECTION.md` | Product and engineering direction | When strategy or prioritization changes |
 | `CLAUDE.md` | Project rules | When workflow/rules change |
 | `QA_CHECKLIST.md` | E2E test cases + debug changelog | Every code change |
 | `BACKLOG.md` | Features, bugs, ideas with priority | When new items come in or items get done |
@@ -14,6 +21,8 @@ When Nicole mentions a feature idea, bug, or "之後要做" item → write it in
 ## QA-First Development (MANDATORY)
 
 Every code change MUST include E2E QA. No exceptions. This is the highest-priority practice in this project.
+
+QA must reflect the project direction in `PROJECT_DIRECTION.md`: do not turn stochastic model performance into one-off prompt drilling. Fix and gate deterministic harness failures first, then measure exploratory model tasks by repeated-trial success rate.
 
 ### Per-Change QA (every commit)
 

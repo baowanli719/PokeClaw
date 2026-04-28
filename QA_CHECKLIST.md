@@ -2,6 +2,9 @@
 
 Every build must pass ALL checks before shipping.
 
+Project direction lives in `PROJECT_DIRECTION.md`. QA should enforce that direction:
+fix deterministic harness/runtime bugs first, keep prompts and skills generic, and measure stochastic model behavior by repeated-trial success rate instead of hardcoding one task.
+
 ---
 
 ## QA Methodology — How to Test (READ THIS FIRST)
@@ -432,12 +435,18 @@ If a task is not clearly marked `PASS`, `FIXED`, or `BLOCKED` with a reason, do 
 
 A build is only genuinely ship-ready when all of the following are true:
 
+- **Direction gate**
+  - The change follows `PROJECT_DIRECTION.md`
+  - It fixes a reusable harness/runtime/product problem, or clearly documents why a narrow change is justified
+  - Prompt, skill, and playbook changes remain generic; no one-off tuning for a single flaky task
+  - Model-performance limits are measured and documented instead of treated as deterministic product bugs
 - **Product gate**
   - Chat vs Task routing is correct in Local and Cloud
   - Local GPU→CPU fallback is truthful and stable
   - Monitor stays in-app and does not force Home
   - Auto-return restores the same conversation after tasks
 - **QA gate**
+  - Deterministic harness/runtime flows are effectively `10/10`
   - Local deterministic/core sweep finishes with no product `FAIL`
   - Cloud exploratory quick-task and M-session style sweeps are judged by repeated-trial success rate, not one-off luck
   - any Cloud workflow called out as a headline/demo/release-note capability should meet roughly `9/10` on the target device
