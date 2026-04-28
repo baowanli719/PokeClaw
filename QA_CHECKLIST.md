@@ -283,6 +283,97 @@ Key OEM differences:
 
 ---
 
+## Current Coverage Snapshot (2026-04-28, v0.6.8 QA Audit)
+
+This is the latest QA state for `v0.6.8`. It is **not** a green release sheet.
+Do not describe `v0.6.8` as fully phone-QA-passed until the blockers below are
+fixed and the relevant sweeps are rerun.
+
+Test device and artifact state:
+- Device: Pixel 8 Pro (`husky`), Android 16 / API 36, build `CP1A.260405.005`
+- Installed test build: `0.6.8` debug APK, upgraded in place over the existing
+  debug-signed `0.6.7` install
+- Stable release APK upgrade attempt: **BLOCKED**. `adb install -r
+  app/build/outputs/apk/release/PokeClaw_v0.6.8_20260428_112909.apk` failed with
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because the installed `0.6.7` package is
+  debug-signed and the `0.6.8` release APK is signed by the stable release cert
+  (`e000d1d6555b8fab20c03a5d9ddeba83944f26eecf0b978ac7affc2eebd43186`)
+- Release artifact conclusion: the stable APK has **not** been real-device
+  upgrade-verified on this handset. Test users moving from debug/old-signature
+  builds still need an uninstall/reinstall path or a clear signed-line migration
+  note.
+- Local release-build conclusion: `./gradlew assembleRelease` compiles/minifies
+  but fails at `:app:packageRelease` because local `SigningConfig "release"` is
+  missing `storeFile`; a signed hotfix APK must be produced by the configured
+  release/CI signing path or after restoring local signing secrets.
+
+Cloud quick-task sweep after fixes:
+- Command: `RESULTS_FILE=/tmp/pokeclaw-v068-cloud-quick-20260428-1337-after-wa-fix.log
+  CLOUD_MODEL_NAME=gpt-4.1 ./scripts/e2e-quick-tasks.sh cloud`
+- Result: **17 PASS / 0 FAIL / 1 BLOCKED / 2 TIMEOUT / 20 TOTAL**
+- Passed: Reddit search, YouTube search, Telegram/Play Store path, Twitter
+  trending, write email, notifications triage, clipboard explain, storage
+  analysis, notification summary, battery advice, WhatsApp send to `Girlfriend`,
+  installed-apps list, phone temperature, Bluetooth, battery, storage, Android
+  version
+- Timed out:
+  - `S6/M11` WhatsApp latest-chat summary: still times out at 60s
+  - `RC6-cloud-gmail-google` copy latest email subject and Google it: still
+    times out at 60s in the latest full sweep
+- Blocked:
+  - `M47` call Mom: latest run could not find a saved contact named `Mom`; treat
+    as data/environment blocked, not a completed call-flow pass
+- Regressions fixed since the first 2026-04-28 audit:
+  - `S7/M51` Reddit search no longer gets stuck; it passed in two follow-up
+    sweeps
+  - `B1` WhatsApp send no longer times out; latest full sweep passed in 15s
+  - `S8/M19` write email passed in the latest full sweep
+  - Timeout cleanup no longer leaks `Task cancelled`/interruption into the next
+    harness case
+
+Local targeted smoke after fixes:
+- Targeted Local E2B deterministic smoke (`How much battery left?`) completed in
+  **105s** after calling `get_device_info(category=battery)` and returning
+  `60%, not charging, 38.1°C`
+- The run first attempted GPU, hit `Can not find OpenCL library on this device`,
+  then fell back to CPU and completed. This verifies GPU fallback did not crash,
+  but local latency is still high.
+- The earlier foreground-service crash path has been fixed by calling
+  `startForeground()` immediately in `ForegroundService.onCreate()`
+- Local conclusion: targeted Local battery is no longer a hard fail, but Local
+  mode is **not full-sweep green** until the full local quick-task set is rerun.
+
+Release blockers found in this audit:
+- `Rel-s9`: stable-signed APK cannot upgrade over the currently installed
+  debug/old-signature package; document migration and verify a clean stable
+  install before asking users to upgrade
+- Release signing: local `assembleRelease` cannot package a signed APK without
+  the release keystore `storeFile`
+- `S6`: WhatsApp latest-chat summary is still not passing on the Pixel 8 Pro QA
+  device
+- `RC6-cloud-gmail-google`: copy latest email subject and Google it still times
+  out in the latest full Cloud sweep
+- `LQ-v068`: Local targeted battery now passes, but Local full sweep has not been
+  rerun and Local CPU-fallback latency remains high
+
+What can still be claimed from this audit:
+- Direct Cloud device-data tools are still working in the quick sweep:
+  clipboard, notifications, battery, storage, Bluetooth, phone temperature, and
+  Android version all returned real device data
+- Cross-app Cloud flows that passed in the latest full sweep include Reddit
+  search, YouTube search, Twitter trending, Telegram/Play Store path, write
+  email, and WhatsApp direct send to `Girlfriend`
+- Local E2B battery can complete through GPU-to-CPU fallback, but slowly
+
+What cannot be claimed:
+- `v0.6.8` cannot be called fully QA-passed
+- The stable release APK cannot be called upgrade-verified on the QA phone
+- WhatsApp latest-chat summary cannot be called fixed
+- Gmail latest-subject-to-Google cannot be called fixed
+- Local task mode cannot be called full-sweep healthy yet
+
+---
+
 ## Current Coverage Snapshot (2026-04-10)
 
 This checklist is **not** yet a fully rerun 100% green master sheet. The honest current state is:
@@ -1136,12 +1227,37 @@ Format: `[date] [status] [test-id] description`
 [2026-04-12] [PASS]    Q8-3  Cloud relaunch memory continuity on Pixel 8 Pro: in one Cloud chatroom, `Remember token cloudrestart7312 and reply with only OK.` returned `OK`; after full force-stop + relaunch, the same conversation restored and `What token did I ask you to remember? Reply with only the token.` visibly returned `cloudrestart7312`
 [2026-04-12] [PASS]    Q8-4  Local relaunch memory continuity on Pixel 8 Pro: in one Local E4B chatroom, `Remember token localrestart5186 and reply with only OK.` returned `OK`; after full force-stop + relaunch, the same conversation restored under `● Gemma 4 E4B — 3.6GB · CPU` and `What token did I ask you to remember? Reply with only the token.` visibly returned `localrestart5186`
 [2026-04-12] [PASS]    Rel-s8  Version-prep build gate for `0.6.0`: `assembleDebug` passed in-sandbox, and a stable-signed local `assembleRelease` produced `app/build/outputs/apk/release/PokeClaw_v0.6.0_20260411_223047.apk` with SHA-256 `649b87e69cf166f8ce0e144aee9d416aaba48b152fa33842a88c7f695b67c57d`
+[2026-04-28] [BLOCKED] Rel-s9  `v0.6.8` stable release APK could not upgrade the Pixel 8 Pro from the installed debug-signed `0.6.7`: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Debug `0.6.8` upgraded in place and was used for code-path QA; the stable APK still needs a clean-install or signed-line migration test before upgrade claims
+[2026-04-28] [FAIL]    v068-cloud-sweep  Cloud quick-task sweep on Pixel 8 Pro / Android 16 with `gpt-4.1` finished `13 PASS / 4 FAIL / 1 BLOCKED / 2 TIMEOUT / 20 TOTAL`; result log: `/tmp/pokeclaw-v068-cloud-quick-20260428-123547.log`
+[2026-04-28] [FAIL]    S7/M51  `Open Reddit and search for pokeclaw` regressed from the 2026-04-10 pass; stuck detector stopped the agent after the screen stayed unchanged for 3 consecutive steps
+[2026-04-28] [FAIL]    S6/M11  `Check my latest WhatsApp chat and summarize it` opened WhatsApp but repeated `system_key(back)` and was stopped by stuck detection
+[2026-04-28] [TIMEOUT] S8/M19  `Write an email saying I will be late today` timed out at 60s; the next harness case saw leaked `Task cancelled` state from the unfinished email flow
+[2026-04-28] [TIMEOUT] B1     `Send hi to Girlfriend on WhatsApp` timed out at 45s on the Pixel 8 Pro QA device
+[2026-04-28] [BLOCKED] M47    `Call Mom` hit an external Google Contacts notification-permission dialog; classify this run as environment-blocked, but the harness must recover/clean foreground state before continuing other cases
+[2026-04-28] [FAIL]    LQ-v068  Local quick-task sweep did not complete: an invalid first attempt failed after force-stop disconnected Accessibility, the retry timed out on `Notifications triage`, and a targeted Local E2B `how much battery left` smoke also timed out after 180s under the current device state
+[2026-04-28] [FIXED]   v068-debug-tool-anr  Direct debug tool broadcasts now run via `goAsync()` background work; focused `send_message` debug-tool smoke sent `qa-ping` to `Girlfriend` without the BroadcastReceiver main-thread ANR
+[2026-04-28] [FIXED]   v068-direct-tool-threading  Tier-1 DirectTool routes now execute off the caller thread, preserve `ToolResult.isSuccess`, log direct `onComplete`, and release/reset task state in a `finally` block
+[2026-04-28] [FIXED]   v068-e2e-cleanup  `scripts/e2e-quick-tasks.sh` now sends debug `cancel:`, resets foreground between cases, dismisses stale PokeClaw ANR dialogs, waits for Accessibility binding, and classifies `Failed:` completions as failures instead of passes
+[2026-04-28] [FIXED]   v068-wa-overflow  Contact lookup overlay dismissal no longer treats a generic top-right ImageButton as a close button; this stopped the WhatsApp overflow menu from being opened during contact lookup
+[2026-04-28] [FIXED]   v068-fgs-race  ForegroundService now calls `startForeground()` immediately in `onCreate()`, preventing `ForegroundServiceDidNotStartInTimeException` when a task fails/stops before `onStartCommand` can update the notification
+[2026-04-28] [PASS]    B1-v068-followup  Focused Cloud `Send hi to Girlfriend on WhatsApp` from a wrong WhatsApp chat completed in 15s: back to chat list, search `Girlfriend`, type `hi`, tap send, and log direct `onComplete`
+[2026-04-28] [FAIL]    v068-cloud-sweep-after-fixes  Latest Cloud quick-task sweep finished `17 PASS / 0 FAIL / 1 BLOCKED / 2 TIMEOUT / 20 TOTAL`; result log: `/tmp/pokeclaw-v068-cloud-quick-20260428-1337-after-wa-fix.log`. Remaining timeouts: WhatsApp latest-chat summary and copy latest email subject then Google it
+[2026-04-28] [PASS]    LQ-v068-e2b-battery-followup  Targeted Local E2B `How much battery left?` completed in 105s after GPU OpenCL failure fell back to CPU, called `get_device_info(category=battery)`, and returned `60%, not charging, 38.1°C`
+[2026-04-28] [BLOCKED] Rel-s10  Local `./gradlew assembleRelease` compiled and minified but failed at `:app:packageRelease`: `SigningConfig "release" is missing required property "storeFile"`. Signed release APK needs CI/release signing secrets or local keystore restoration
 ```
 
 ### Bugs Found During v9 QA
 
 | ID | Issue | Root Cause | Priority |
 |----|-------|-----------|----------|
+| Rel-s9 | Stable `v0.6.8` APK cannot upgrade the installed QA-phone package | Installed phone has a debug-signed `0.6.7`; stable `0.6.8` uses the release cert, so Android rejects in-place upgrade with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Blocker before upgrade claims |
+| Rel-s10 | Local signed release package cannot be produced | `./gradlew assembleRelease` fails at `:app:packageRelease` because local release signing config has no `storeFile` | Blocker for local release; use CI signing or restore local secrets |
+| v068-wa-send | ~~`Send hi to Girlfriend on WhatsApp` timed out in the Cloud sweep~~ | Fixed 2026-04-28: deterministic send parser routes literal send commands to `send_message`, DirectTool no longer blocks the caller thread, ToolResult failures are respected, and contact lookup no longer opens WhatsApp overflow menu as a fake close action | Fixed; latest full Cloud sweep passed B1 in 15s |
+| v068-wa-summary | WhatsApp latest-chat summary loops on Back and triggers stuck detection | Unknown yet; likely navigation/state handling after opening WhatsApp | Blocker |
+| v068-gmail-google-timeout | `Copy the latest email subject and Google it` still times out in the latest Cloud sweep | Needs focused Gmail read/search trace; earlier repeated-trial pass rate was 8/10, but latest full sweep timed out twice | High |
+| v068-email-cleanup | ~~Email compose timeout leaks cancellation/interruption into later harness cases~~ | Fixed 2026-04-28 in the QA runner: timeout now triggers debug cancel + foreground reset before the next case; latest sweep did not leak `Task cancelled`, and `Write an email saying I will be late today` passed | Fixed |
+| v068-local-timeout | ~~Local quick-task and Local E2B battery smoke timeout under current QA state~~ | Partially fixed/clarified 2026-04-28: targeted Local E2B battery now passes in 105s after GPU→CPU fallback; Local full sweep still needs rerun and latency remains high | Partial; not full-sweep green |
+| v068-fgs-race | Fast task failure can crash with `ForegroundServiceDidNotStartInTimeException` | `stopService`/reset could happen before the service got to `startForeground()`; service now starts foreground immediately in `onCreate()` | Fixed |
 | Q5-1 | ~~LiteRT "Can not find OpenCL" crash in sendChat()~~ | Fixed 2026-04-09: `sendChat()` now mirrors the Local client fallback path, resets the engine after OpenCL/native errors, and retries on CPU instead of failing the chat send | Fixed |
 | Q5-2 | ~~API key was "test"~~ | ~~Device had dummy key, reconfigured~~ | ~~Config~~ |
 | K2-a | ~~Accessibility status row shows `Disabled` while Android Accessibility page has `Use PokeClaw` ON~~ | Fixed 2026-04-10: app Settings now reads `enabled_accessibility_services` via `isEnabledInSettings()` | Fixed |

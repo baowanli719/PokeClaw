@@ -300,6 +300,16 @@ Every star helps more people find the project. Every issue helps shape the next 
 
 ## Changelog
 
+### v0.6.9 (2026-04-28)
+- **Hotfix release for the latest user-reported task failures.** This is a focused signed release for fixes that were verified after the v0.6.8 catch-up release; the remaining exploratory QA gaps are still tracked instead of hidden.
+- **WhatsApp direct send is more reliable.** Literal commands such as `send hi to Girlfriend on WhatsApp` now route straight to the direct `send_message` tool, and the focused Pixel 8 Pro regression for the wrong-chat send path now passes.
+- **Direct tool execution no longer blocks the app thread.** Direct tool tasks now run off the receiver/main path, preserve their real `ToolResult`, and always clean up task state, which prevents a class of ANR-style failures during quick tasks.
+- **Foreground service startup is safer on aggressive Android builds.** PokeClaw now enters foreground state immediately when the service is created if notification permission is available, reducing `ForegroundServiceDidNotStartInTimeException` crashes when a task exits early.
+- **WhatsApp contact lookup avoids a false close-button match.** The contact picker no longer treats generic top-right image buttons, such as WhatsApp overflow controls, as close buttons unless the UI exposes a clear close/dismiss/cancel signal.
+- **QA automation is stricter and cleaner.** The quick-task runner now cancels stale tasks between cases, dismisses stale ANR dialogs, waits for Accessibility readiness, resets foreground state, and marks `Failed:` task answers as real failures.
+- **Known remaining QA gaps.** The post-fix Cloud sweep was `17 PASS / 0 FAIL / 1 BLOCKED / 2 TIMEOUT / 20 TOTAL`; WhatsApp latest-chat summary and copy-latest-email-subject-to-Google still time out, and one call task remains blocked by missing test contact data.
+- **Install note for early testers.** If Android reports a package/signature conflict from an older debug or early signed APK, uninstall that old build once and then install this stable signed release.
+
 ### v0.6.8 (2026-04-28)
 - **Stable public catch-up release.** This promotes the recent debug-report and local-model hardening work into a stable signed release so users can test one current APK instead of chasing debug prereleases.
 - **Model download storage is more reliable.** Fixed a device-side failure where the model download directory could be missing on some ROMs, causing downloads to fail with `ENOENT` before the `.litertlm` file could even be written.

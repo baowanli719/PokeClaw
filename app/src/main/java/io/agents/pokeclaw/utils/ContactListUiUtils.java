@@ -422,13 +422,19 @@ public final class ContactListUiUtils {
             return Integer.MIN_VALUE;
         }
 
-        int score = 10;
+        boolean explicitClose = false;
         if (viewId != null && (viewId.toLowerCase().contains("close") || viewId.toLowerCase().contains("dismiss"))) {
-            score += 100;
+            explicitClose = true;
         }
         if (matchesCloseHint(text) || matchesCloseHint(desc)) {
-            score += 90;
+            explicitClose = true;
         }
+        if (!explicitClose) {
+            return Integer.MIN_VALUE;
+        }
+
+        int score = 10;
+        score += 100;
         if (className.contains("ImageButton") || className.contains("ImageView")) {
             score += 20;
         }
