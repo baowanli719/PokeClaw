@@ -84,8 +84,6 @@ PokeClaw already supports fully on-device automation with Gemma 4 and optional c
 
 ## Product Direction
 
-The internal product and engineering direction is tracked in [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md). In short: PokeClaw optimizes the generic Android agent harness first, not one-off prompt hacks for a single flaky task.
-
 PokeClaw is not just a chat app with a few phone-control tricks glued on top.
 
 At its core, it is becoming a **mobile agent harness**:
@@ -103,6 +101,26 @@ That is also why the project invests so heavily in:
 - repeated real-device QA instead of one-off demos
 - Cloud vs Local model comparisons on the same task families
 - playbooks and rules only when the model proves it needs extra structure
+
+That direction affects how bugs are prioritized. PokeClaw should fix deterministic harness, runtime, hardware, storage, accessibility, foreground-service, signing, and QA-runner problems before drilling into one flaky model task.
+
+Examples of harness problems worth fixing immediately:
+
+- the model cannot observe the relevant screen text
+- a tool reports success when it actually failed
+- task state leaks into the next run
+- Accessibility, Notification Access, foreground service, or install/update state is wrong
+- model download, storage, or LiteRT startup fails before the model can run
+- GPU fallback is mislabeled, crashes, or hides the real fallback reason
+
+Examples that should usually be treated as model-performance or exploratory-agent limits unless logs prove otherwise:
+
+- one Cloud model fails one multi-step app flow once
+- one Local model cannot reason through a complex UI path
+- a workflow sometimes succeeds and sometimes fails because the model chooses a weak plan
+- a prompt needs repeated attempts to pick the right cross-app path
+
+Prompts, tools, skills, and playbooks should stay generic. Add structure when it improves a reusable class of tasks; avoid one-off prompt hacks or coordinate scripts just to make a single demo pass.
 
 ## See the UI
 
@@ -275,6 +293,7 @@ This is the current direction for PokeClaw based on real device testing, open is
 ### Known platform constraints
 
 - **Edge Gallery model detection is not fully under our control.** Android hides other apps' `Android/data/...` sandboxes from normal file-pickers, so PokeClaw cannot generically "see" Edge Gallery's downloaded models unless they are exported into a user-accessible location first.
+- **GPU support is runtime and device specific.** If a device can run GPU in another app but PokeClaw falls back to CPU, the next step is a debug report with device, ROM, model, selected backend, delegate init, and fallback logs. PokeClaw should keep CPU fallback safe and truthful instead of forcing GPU blindly.
 - **Sideload + accessibility apps may trigger OEM security warnings.** Samsung / Play Protect warnings are being addressed through a cleaner release/signing path, but sideload trust prompts are partly controlled by the platform and OEM policy.
 
 ### Where feature requests go

@@ -2,7 +2,7 @@
 
 Every build must pass ALL checks before shipping.
 
-Project direction lives in `PROJECT_DIRECTION.md`. QA should enforce that direction:
+Product direction lives in `README.md` under `Product Direction`, `Roadmap`, and `Known platform constraints`. QA should enforce that direction:
 fix deterministic harness/runtime bugs first, keep prompts and skills generic, and measure stochastic model behavior by repeated-trial success rate instead of hardcoding one task.
 
 ---
@@ -436,7 +436,7 @@ If a task is not clearly marked `PASS`, `FIXED`, or `BLOCKED` with a reason, do 
 A build is only genuinely ship-ready when all of the following are true:
 
 - **Direction gate**
-  - The change follows `PROJECT_DIRECTION.md`
+  - The change follows the `README.md` product direction and roadmap
   - It fixes a reusable harness/runtime/product problem, or clearly documents why a narrow change is justified
   - Prompt, skill, and playbook changes remain generic; no one-off tuning for a single flaky task
   - Model-performance limits are measured and documented instead of treated as deterministic product bugs

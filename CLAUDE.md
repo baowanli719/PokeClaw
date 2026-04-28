@@ -2,7 +2,7 @@
 
 ## Read This First
 
-Before changing prompts, skills, task routing, local runtime, QA, or release behavior, read `PROJECT_DIRECTION.md`.
+Before changing prompts, skills, task routing, local runtime, QA, or release behavior, read `README.md` sections `Product Direction`, `Roadmap`, and `Known platform constraints`.
 
 The short version: PokeClaw is a generic Android mobile-agent harness, not a collection of hardcoded demo tasks. Prioritize runtime, hardware, storage, accessibility, foreground-service, install/signing, and QA-harness correctness before narrow prompt or workflow tuning.
 
@@ -10,10 +10,13 @@ The short version: PokeClaw is a generic Android mobile-agent harness, not a col
 
 | File | What | When to update |
 |------|------|----------------|
-| `PROJECT_DIRECTION.md` | Product and engineering direction | When strategy or prioritization changes |
+| `README.md` | Public product direction, roadmap, changelog | When product direction, roadmap, release notes, or public claims change |
+| `AI_INDEX.md` | Repo map for coding agents | When files or directories move |
 | `CLAUDE.md` | Project rules | When workflow/rules change |
 | `QA_CHECKLIST.md` | E2E test cases + debug changelog | Every code change |
+| `RELEASING.md` | Stable signing and release workflow | When the release process changes |
 | `BACKLOG.md` | Features, bugs, ideas with priority | When new items come in or items get done |
+| `ARCHITECTURE_RECONSTRUCTION.md` | Historical architecture/refactor guardrails | When reconstruction phases change |
 | `CLAUDE.local.md` | Current session state | Every session |
 
 When Nicole mentions a feature idea, bug, or "之後要做" item → write it into `BACKLOG.md` immediately. Don't rely on session memory.
@@ -22,7 +25,7 @@ When Nicole mentions a feature idea, bug, or "之後要做" item → write it in
 
 Every code change MUST include E2E QA. No exceptions. This is the highest-priority practice in this project.
 
-QA must reflect the project direction in `PROJECT_DIRECTION.md`: do not turn stochastic model performance into one-off prompt drilling. Fix and gate deterministic harness failures first, then measure exploratory model tasks by repeated-trial success rate.
+QA must reflect the product direction in `README.md`: do not turn stochastic model performance into one-off prompt drilling. Fix and gate deterministic harness failures first, then measure exploratory model tasks by repeated-trial success rate.
 
 ### Per-Change QA (every commit)
 
