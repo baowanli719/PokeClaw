@@ -459,6 +459,29 @@ A build is only genuinely ship-ready when all of the following are true:
   - any refactor touched only its declared scope
   - required regression bundle for that refactor class was rerun
 
+### Release Gate Record Template
+
+Copy this block into the current coverage snapshot or QA debug changelog for every release candidate. Do not publish a release without either a checked item or a concrete blocker note for each line.
+
+```markdown
+### Release Gate Record — vX.Y.Z (YYYY-MM-DD)
+
+- [ ] Direction gate: change follows README Product Direction / Roadmap / Known platform constraints
+- [ ] Harness gate: deterministic runtime/storage/permissions/direct-tool behavior has no known product FAIL
+- [ ] Scope gate: no prompt/skill/playbook one-off was added solely to make one flaky task pass
+- [ ] Unit/compile gate: `./gradlew compileDebugKotlin testDebugUnitTest`
+- [ ] Script hygiene gate: `bash -n scripts/e2e-quick-tasks.sh && git diff --check`
+- [ ] Artifact gate: `./gradlew assembleDebug` or signed release workflow completed
+- [ ] Targeted regression gate: relevant bundle from "Refactor Regression Bundles" rerun
+- [ ] Device smoke gate: at least one real-device smoke for the changed runtime/product path
+- [ ] Distribution gate: install/upgrade behavior, signing path, release asset, and checksum are verified or explicitly documented as blocked
+- [ ] User-followup gate: affected GitHub/Reddit users are told exactly which stable release to retest and what debug ZIP to attach if it still fails
+- Known misses:
+  - `BLOCKED`: ...
+  - `TIMEOUT`: ...
+  - `FAIL`: ...
+```
+
 ## Refactor Regression Bundles
 
 Do **not** rerun the entire world after every refactor. Rerun the right bundle for the code you touched:
@@ -1253,6 +1276,8 @@ Format: `[date] [status] [test-id] description`
 [2026-04-28] [FAIL]    v068-cloud-sweep-after-fixes  Latest Cloud quick-task sweep finished `17 PASS / 0 FAIL / 1 BLOCKED / 2 TIMEOUT / 20 TOTAL`; result log: `/tmp/pokeclaw-v068-cloud-quick-20260428-1337-after-wa-fix.log`. Remaining timeouts: WhatsApp latest-chat summary and copy latest email subject then Google it
 [2026-04-28] [PASS]    LQ-v068-e2b-battery-followup  Targeted Local E2B `How much battery left?` completed in 105s after GPU OpenCL failure fell back to CPU, called `get_device_info(category=battery)`, and returned `60%, not charging, 38.1°C`
 [2026-04-28] [BLOCKED] Rel-s10  Local `./gradlew assembleRelease` compiled and minified but failed at `:app:packageRelease`: `SigningConfig "release" is missing required property "storeFile"`. Signed release APK needs CI/release signing secrets or local keystore restoration
+[2026-04-28] [FIXED]   LMDir-r1  Issue #39 debug ZIP root cause confirmed: v0.6.7 failed before model download because the external app-files `models` directory did not exist, causing `StatFs` and `.downloading` open to throw `ENOENT`. The storage harness now requires a writable model dir, falls back to internal storage when external app storage cannot be created/written, and reports selected/external/internal model-dir diagnostics in bug ZIPs.
+[2026-04-28] [FIXED]   RelGate-r1  Release gate is now a concrete per-release record template covering direction, harness, scope, compile/test, script hygiene, artifact, targeted regression, device smoke, distribution, and user-followup checks.
 ```
 
 ### Bugs Found During v9 QA

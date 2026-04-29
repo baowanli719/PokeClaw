@@ -321,6 +321,14 @@ Every star helps more people find the project. Every issue helps shape the next 
 
 ## Changelog
 
+### v0.6.10 (2026-04-28)
+- **Model storage hotfix for ROM-specific download failures.** PokeClaw now requires the selected model directory to be writable, not merely present, before using it for large `.litertlm` downloads.
+- **External storage fallback is safer.** If the external app-files `models` directory cannot be created or written on a device/ROM, PokeClaw falls back to internal app storage instead of failing later with `ENOENT` while opening the `.downloading` file.
+- **Bug reports now expose model storage state.** `Settings -> About -> Report a Bug` includes the selected, external, and internal model directories, their readable/writable/stat status, and any storage-selection error.
+- **Local model logs are easier to triage.** Bug-report logcat capture now includes `LocalModelManager`, so download/storage failures carry the storage decision path.
+- **Release gate is now formalized.** `QA_CHECKLIST.md` now has a per-release gate record template so future releases must explicitly record direction, harness, scope, build/test, artifact, device-smoke, distribution, and user-followup status.
+- **Install note for early testers.** If Android reports a package/signature conflict from an older debug or early signed APK, uninstall that old build once and then install this stable signed release.
+
 ### v0.6.9 (2026-04-28)
 - **Hotfix release for the latest user-reported task failures.** This is a focused signed release for fixes that were verified after the v0.6.8 catch-up release; the remaining exploratory QA gaps are still tracked instead of hidden.
 - **WhatsApp direct send is more reliable.** Literal commands such as `send hi to Girlfriend on WhatsApp` now route straight to the direct `send_message` tool, and the focused Pixel 8 Pro regression for the wrong-chat send path now passes.

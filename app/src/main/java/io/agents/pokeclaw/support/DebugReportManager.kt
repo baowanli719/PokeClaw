@@ -8,6 +8,7 @@ import android.os.Build
 import io.agents.pokeclaw.AppCapabilityCoordinator
 import io.agents.pokeclaw.BuildConfig
 import io.agents.pokeclaw.agent.llm.LocalBackendHealth
+import io.agents.pokeclaw.agent.llm.LocalModelManager
 import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.service.AutoReplyManager
 import io.agents.pokeclaw.utils.AppLogStore
@@ -49,6 +50,7 @@ object DebugReportManager {
         val httpDir = File(context.cacheDir, "http_logs")
         val httpLogs = httpDir.listFiles()?.size ?: 0
         val appLogs = AppLogStore.listLogFiles(context).size
+        val modelStorage = LocalModelManager.storageDiagnostics(context)
         val autoReplyManager = AutoReplyManager.getInstance()
         val monitorTargets = autoReplyManager.monitoredTargets.joinToString(", ") { it.displayLabel }
         val cpuSafeAt = KVUtils.getLocalCpuSafeAt()
@@ -109,6 +111,15 @@ object DebugReportManager {
             appendLine("- GPU re-arm eligible now: ${if (gpuRearmEligible) "Yes" else "No"}")
             appendLine("- Pending GPU init marker: ${if (LocalBackendHealth.hasPendingGpuInitMarker()) "Present" else "None"}")
             appendLine()
+            appendLine("Local model storage")
+            appendLine("- Selected model dir: ${modelStorage.selectedDir ?: "(none)"}")
+            appendLine("- Selected model dir available bytes: ${modelStorage.selectedAvailableBytes?.toString() ?: "(unknown)"}")
+            appendLine("- Selected model dir error: ${modelStorage.selectedError ?: "(none)"}")
+            appendLine("- External model dir: ${modelStorage.externalDir}")
+            appendLine("- External model dir status: ${modelStorage.externalStatus}")
+            appendLine("- Internal model dir: ${modelStorage.internalDir}")
+            appendLine("- Internal model dir status: ${modelStorage.internalStatus}")
+            appendLine()
             appendLine("Auto-reply")
             appendLine("- Enabled: ${if (autoReplyManager.isEnabled) "Yes" else "No"}")
             appendLine("- Targets: ${monitorTargets.ifBlank { "(none)" }}")
@@ -159,6 +170,7 @@ object DebugReportManager {
                 "AutoReplyManager:V",
                 "ForegroundService:V",
                 "LocalBackendHealth:V",
+                "LocalModelManager:V",
                 "EngineHolder:V",
                 "LocalModelRuntime:V",
                 "InputTextTool:V",

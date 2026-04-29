@@ -35,6 +35,22 @@ class LocalModelManagerTest {
     }
 
     @Test
+    fun `model directory falls back to internal storage when external path is not writable`() {
+        val externalRoot = temporaryFolder.newFolder("external")
+        val internalRoot = temporaryFolder.newFolder("internal")
+        val externalModelDir = externalRoot.resolve("models")
+
+        val dir = LocalModelManager.resolveUsableModelDir(
+            externalRoot = externalRoot,
+            internalRoot = internalRoot,
+            canWriteDirectory = { candidate -> candidate != externalModelDir },
+        )
+
+        assertEquals(internalRoot.resolve("models"), dir)
+        assertTrue(dir.isDirectory)
+    }
+
+    @Test
     fun `model directory falls back to internal storage when external root is missing`() {
         val internalRoot = temporaryFolder.newFolder("internal")
 
