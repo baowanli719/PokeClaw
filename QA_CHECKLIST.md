@@ -482,6 +482,23 @@ Copy this block into the current coverage snapshot or QA debug changelog for eve
   - `FAIL`: ...
 ```
 
+### Release Gate Record — v0.6.10 (2026-04-28)
+
+- [x] Direction gate: follows README Product Direction / Roadmap / Known platform constraints; this fixes model-storage harness behavior instead of tuning a flaky task
+- [x] Harness gate: `LocalModelManager` now requires a writable model directory and falls back external app storage -> internal app storage when needed
+- [x] Scope gate: no prompt/skill/playbook one-off was added
+- [x] Unit/compile gate: `./gradlew compileDebugKotlin testDebugUnitTest` passed
+- [x] Script hygiene gate: `bash -n scripts/e2e-quick-tasks.sh && git diff --check` passed
+- [x] Artifact gate: `./gradlew assembleDebug` passed; signed release workflow `25084344165` passed
+- [x] Targeted regression gate: `LocalModelManagerTest` covers external dir creation, blocked external path, external write-probe fallback, and missing external root fallback
+- [ ] Device smoke gate: blocked on the exact Xiaomi/custom-ROM repro device; #39 reporter has been asked to retest v0.6.10 and attach a fresh bug ZIP
+- [x] Distribution gate: GitHub release `v0.6.10` published with signed APK `PokeClaw_v0.6.10_20260429_001417.apk`, SHA-256 `1cdc95d13dc6bbecad5ad7fe1cf17a9d6b0e92e4b3e2ebb674fc3d62a2a3ca02`, plus `SHA256SUMS.txt`
+- [x] User-followup gate: follow-up comments posted to #39, #17, #29, and #23
+- Known misses:
+  - `BLOCKED`: exact Xiaomi/custom-ROM model-download repro still requires reporter retest
+  - `TIMEOUT`: inherited v0.6.9 exploratory Cloud timeouts remain outside this storage hotfix scope
+  - `FAIL`: none known in the local model storage selection regression bundle
+
 ## Refactor Regression Bundles
 
 Do **not** rerun the entire world after every refactor. Rerun the right bundle for the code you touched:
