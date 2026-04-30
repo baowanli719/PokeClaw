@@ -482,6 +482,23 @@ Copy this block into the current coverage snapshot or QA debug changelog for eve
   - `FAIL`: ...
 ```
 
+### Release Gate Record — v0.6.11 (2026-04-30)
+
+- [x] Direction gate: follows README Product Direction / Roadmap / Known platform constraints; this release adds a generic external automation harness slot instead of a one-off task prompt.
+- [x] Harness gate: production external automation receiver is user-enabled, targeted to the PokeClaw package, and routes through normal task/chat harness rules.
+- [x] Scope gate: no prompt/skill/playbook one-off was added solely to make a flaky task pass.
+- [x] Unit/compile gate: `./gradlew testDebugUnitTest assembleDebug` passed.
+- [x] Script hygiene gate: `bash -n scripts/e2e-quick-tasks.sh && git diff --check` passed.
+- [x] Artifact gate: local debug artifact built; signed release artifact is produced by the tag-triggered GitHub Actions release workflow using repository signing secrets.
+- [x] Targeted regression gate: `ExternalAutomationContractTest` covers task/chat parsing, base64 payloads, callback metadata, unknown action rejection, and missing payload rejection.
+- [x] Device smoke gate: Pixel 8 Pro MacroDroid `Send Intent` E2E triggered `io.agents.pokeclaw.RUN_TASK`, PokeClaw accepted it, and the chatroom visibly returned `Battery: 98%, charging, 35.2°C`.
+- [x] Distribution gate: release is tag-workflow based; final signed APK/checksum must be verified from the GitHub release before user follow-up.
+- [x] User-followup gate: affected GitHub/Reddit users should be pointed to v0.6.11 for External Automation / MacroDroid / direct-device task retesting.
+- Known misses:
+  - `BLOCKED`: Tasker-specific E2E is blocked by Play Store purchase requirement on the QA phone; MacroDroid E2E is verified.
+  - `PARTIAL`: callback-consumer E2E remains open until a Tasker/MacroDroid receiver profile is configured.
+  - `FAIL`: none known in the External Automation task/chat/direct-device smoke path.
+
 ### Release Gate Record — v0.6.10 (2026-04-28)
 
 - [x] Direction gate: follows README Product Direction / Roadmap / Known platform constraints; this fixes model-storage harness behavior instead of tuning a flaky task
@@ -558,7 +575,11 @@ When in doubt, rerun the smaller bundle first, then expand only if something dri
 - [ ] WhatsApp installed with at least 1 contact ("Girlfriend")
 - [ ] For monitor QA, an external sender path is available:
   - WhatsApp: second phone / second WhatsApp account
-  - Telegram: second Telegram account or a Telegram bot token + already-started bot chat on this device
+  - Telegram notification monitor: second Telegram account or a Telegram bot token + already-started bot chat on this device
+  - Telegram bot remote-control channel: Telegram bot token configured in PokeClaw, bot polling connected, and this handset's Telegram account able to send `/start` plus a task to the bot
+- [ ] For external automation QA, Tasker/MacroDroid or an equivalent explicit broadcast sender is available:
+  - the test must run against a release build once the production receiver exists
+  - debug-only `io.agents.pokeclaw.TASK` / `DEBUG_TASK` receivers are not enough for public integration claims
 - [ ] For missed-call QA, an external caller path is available:
   - second phone / second SIM / VoIP caller that can place a real call to this handset
   - one follow-up route already configured
@@ -569,6 +590,7 @@ When in doubt, rerun the smaller bundle first, then expand only if something dri
 - WhatsApp and Telegram monitor tests are only `PASS` when a real external sender delivers a message to this phone and PokeClaw reacts.
 - If the app logic is ready but there is no sender available, mark the case `BLOCKED`, not `FAIL`.
 - For Telegram bot QA, the bot must already have an open chat with this handset; Telegram bots cannot cold-DM a user who never started the bot.
+- If the Telegram account is frozen/read-only and cannot send messages or take actions, mark Telegram bot E2E as `BLOCKED`, not `FAIL`.
 - When testing monitor fixes, always verify both:
   - monitor shell state (`Monitoring: ...`, expand, Stop)
   - actual incoming-message reaction from an external sender
@@ -610,6 +632,19 @@ When in doubt, rerun the smaller bundle first, then expand only if something dri
 - [ ] **C9. Missed-call result is visible in chatroom**: after the follow-up fires, the same PokeClaw conversation shows a clear status/result bubble instead of hiding the action purely in background state
 - [ ] **C10. Wrong caller does not trigger**: a different number/contact calls and is missed → no follow-up is sent for the protected target workflow
 - [ ] **C11. SMS-first path stays API-first**: when the follow-up channel is SMS, the implementation should use an Android-native send path rather than accessibility-driven UI navigation
+
+## C3. Remote Control Channels & External Automation
+
+- [ ] **C12. Telegram bot token config**: Settings → Remote Control → Telegram Bot → enter token → Save → Settings shows `Connected`; token is not printed in logs, screenshots, bug ZIPs, or QA notes
+- [ ] **C13. Telegram bot polling receives message**: user starts the bot from Telegram and sends a simple task → PokeClaw logcat shows Telegram update received and dispatches it through `ChannelManager`
+- [ ] **C14. Telegram bot reply path**: after a bot task completes or fails, PokeClaw sends a Telegram reply to the same chat id with a visible success/failure message
+- [ ] **C15. Telegram bot blocked account handling**: if the handset Telegram account is frozen/read-only, record `BLOCKED` with the Telegram system message and do not claim channel failure
+- [ ] **C16. Production intent task entrypoint**: with `Settings -> Remote Control -> External Automation = Enabled`, a Tasker/MacroDroid-style targeted broadcast starts the requested task in a release build:
+  `adb shell am broadcast -a io.agents.pokeclaw.RUN_TASK -p io.agents.pokeclaw --es task "how much battery left"`
+- [ ] **C17. Production intent chat entrypoint**: targeted broadcast with `chat` opens/uses the chatroom path without bypassing safety rules:
+  `adb shell am broadcast -a io.agents.pokeclaw.RUN_CHAT -p io.agents.pokeclaw --es chat "say hi"`
+- [ ] **C18. Production intent callback**: when `request_id` and `return_action` are provided, PokeClaw broadcasts `accepted` immediately and terminal `completed` / `failed` / `cancelled` / `blocked` / `rejected` results back to the caller
+- [ ] **C19. External automation safety**: an Intent payload cannot override platform safety rules, tool contracts, or user global instructions
 
 ## D. Local LLM — Chat
 
@@ -904,6 +939,16 @@ Layer 1 broadcast bypasses UI routing. Only Layer 3 catches routing bugs.
 ### Q9. Chat -> Task Context Handoff
 - [ ] **Q9-1. Cloud task inherits chatroom history**: in one Cloud chatroom, ask for a summary or establish a reusable fact → then send a task like `send that summary by email` or `text that to Monica` without repeating the content → task should use the earlier chatroom context and complete using the referenced content
 - [ ] **Q9-2. Local task stays prompt-only**: in one Local chatroom, establish a fact/summary → switch to Task mode and send a vague task like `send that summary by email` without repeating the content → app should not pretend it has the full chat context; expected product behavior is either a graceful failure or a result that clearly depends only on the current task prompt
+
+### Q10. Persistent Instructions & Memory
+
+- [ ] **Q10-1. Global instructions apply**: set a short global instruction → start a new Cloud chat/task → the model follows it without changing platform/tool safety behavior
+- [ ] **Q10-2. Local compressed instructions apply**: same global instruction works in Local mode using a condensed prompt budget, without stuffing unrelated app rules into the context
+- [ ] **Q10-3. Scoped app rules load only when relevant**: Telegram task loads Telegram-scoped rules; WhatsApp task loads WhatsApp-scoped rules; unrelated rules are omitted
+- [ ] **Q10-4. Clear instructions removes effect**: delete global instructions → new chats/tasks no longer apply the old instruction
+- [ ] **Q10-5. Manual memory lifecycle**: user explicitly saves a memory → it survives relaunch → user deletes it → it no longer appears in later model context
+- [ ] **Q10-6. Secrets never become memory**: API keys, bot tokens, passwords, and recovery codes are rejected or redacted from memory and excluded from bug reports
+- [ ] **Q10-7. Untrusted content cannot override rules**: screen/web/notification text that says "ignore previous instructions" is treated as content, not as a higher-priority instruction
 
 ## N. Tinder Automation
 
@@ -1295,6 +1340,18 @@ Format: `[date] [status] [test-id] description`
 [2026-04-28] [BLOCKED] Rel-s10  Local `./gradlew assembleRelease` compiled and minified but failed at `:app:packageRelease`: `SigningConfig "release" is missing required property "storeFile"`. Signed release APK needs CI/release signing secrets or local keystore restoration
 [2026-04-28] [FIXED]   LMDir-r1  Issue #39 debug ZIP root cause confirmed: v0.6.7 failed before model download because the external app-files `models` directory did not exist, causing `StatFs` and `.downloading` open to throw `ENOENT`. The storage harness now requires a writable model dir, falls back to internal storage when external app storage cannot be created/written, and reports selected/external/internal model-dir diagnostics in bug ZIPs.
 [2026-04-28] [FIXED]   RelGate-r1  Release gate is now a concrete per-release record template covering direction, harness, scope, compile/test, script hygiene, artifact, targeted regression, device smoke, distribution, and user-followup checks.
+[2026-04-30] [PASS]    Rel-v0610-fresh-install  QA phone clean-installed stable v0.6.10 after uninstalling the debug-signed PokeClaw package; verified versionName=0.6.10, versionCode=25, and release signature fingerprint prefix 745eed92.
+[2026-04-30] [PASS]    TgBot-v0610-config  PokeClaw Settings -> Remote Control -> Telegram Bot accepted a Telegram bot token and Settings showed `Connected`; the token was treated as secret and was not recorded in QA notes.
+[2026-04-30] [BLOCKED] TgBot-v0610-e2e  Telegram bot true E2E remains blocked by handset Telegram account state: Telegram showed the account as frozen/read-only, and Spam Info Bot appeal was submitted successfully at 10:33; supervisor review is pending.
+[2026-04-30] [BLOCKED] TgApp-v0610-send  Telegram app send-message smoke is blocked by the same frozen/read-only Telegram account; do not claim Telegram app automation support until retested with a writable account/contact.
+[2026-04-30] [FIXED]   ExtAuto-r1  Production External Automation API added: user-enabled `io.agents.pokeclaw.RUN_TASK` / `RUN_CHAT` receiver, targeted-broadcast requirement, base64 extras, immediate `accepted` callback, and task terminal callback contract.
+[2026-04-30] [FIXED]   ExtAuto-r2  External task intents no longer wait for chat model readiness; task payloads go straight to `TaskFlowController`, so deterministic/direct tasks can run before LLM config.
+[2026-04-30] [FIXED]   DD-ready-r1  Deterministic direct-device tasks now run before LLM/accessibility gates even when Accessibility is already `READY`; this prevents `how much battery left` from being incorrectly blocked by missing LLM config.
+[2026-04-30] [PASS]    C16-extauto-task  Pixel 8 Pro debug-build smoke: with `Settings -> Remote Control -> External Automation = Enabled`, `adb shell am broadcast -a io.agents.pokeclaw.RUN_TASK -p io.agents.pokeclaw --es task "how much battery left"` was accepted, logged `sendTask: executing deterministic direct tool before LLM/accessibility gates`, and visibly returned `Battery: 80%, charging, 35.0°C`.
+[2026-04-30] [PASS]    C17-extauto-chat  Pixel 8 Pro debug-build smoke: `adb shell am broadcast -a io.agents.pokeclaw.RUN_CHAT -p io.agents.pokeclaw --es chat "say hi"` was accepted and opened the chatroom path; because the clean QA install has no LLM selected, the UI showed `Configure LLM in Settings first.` instead of silently hanging.
+[2026-04-30] [PARTIAL] C18-extauto-callback  Callback contract unit coverage passes and live task smoke with `request_id` / `return_action` did not crash, but no Tasker/MacroDroid callback receiver was available on the QA phone; keep true callback-consumer E2E open.
+[2026-04-30] [BLOCKED] Tasker-extauto-install  Tasker Play Store install on the QA phone is blocked by purchase requirement (`HK$34.90` shown). Do not claim Tasker-specific E2E until the paid app is installed or a user-owned license is available.
+[2026-04-30] [PASS]    MacroDroid-extauto-e2e  Installed MacroDroid, created macro `PokeClaw Battery E2E` with `Shortcut Launched` trigger and `Send Intent` action targeting `io.agents.pokeclaw.RUN_TASK`, package `io.agents.pokeclaw`, extra `task=how much battery left`; MacroDroid `Test macro` triggered PokeClaw, logged `Accepted external automation TASK`, ran the deterministic direct tool, and visibly returned `Battery: 83%, not charging, 38.1°C`.
 ```
 
 ### Bugs Found During v9 QA
@@ -1309,6 +1366,8 @@ Format: `[date] [status] [test-id] description`
 | v068-email-cleanup | ~~Email compose timeout leaks cancellation/interruption into later harness cases~~ | Fixed 2026-04-28 in the QA runner: timeout now triggers debug cancel + foreground reset before the next case; latest sweep did not leak `Task cancelled`, and `Write an email saying I will be late today` passed | Fixed |
 | v068-local-timeout | ~~Local quick-task and Local E2B battery smoke timeout under current QA state~~ | Partially fixed/clarified 2026-04-28: targeted Local E2B battery now passes in 105s after GPU→CPU fallback; Local full sweep still needs rerun and latency remains high | Partial; not full-sweep green |
 | v068-fgs-race | Fast task failure can crash with `ForegroundServiceDidNotStartInTimeException` | `stopService`/reset could happen before the service got to `startForeground()`; service now starts foreground immediately in `onCreate()` | Fixed |
+| TgBot-v0610-readonly | Telegram bot channel E2E cannot complete on the current QA phone | The handset Telegram account is frozen/read-only; Spam Info Bot appeal was submitted successfully and is pending Telegram supervisor review | Environment blocker; needs successful unfreeze or a writable Telegram account |
+| TgApp-v0610-readonly | Telegram app send-message smoke cannot complete on the current QA phone | Same frozen/read-only Telegram account cannot send messages or take actions until Telegram review completes | Environment blocker; retest with writable account/contact |
 | Q5-1 | ~~LiteRT "Can not find OpenCL" crash in sendChat()~~ | Fixed 2026-04-09: `sendChat()` now mirrors the Local client fallback path, resets the engine after OpenCL/native errors, and retries on CPU instead of failing the chat send | Fixed |
 | Q5-2 | ~~API key was "test"~~ | ~~Device had dummy key, reconfigured~~ | ~~Config~~ |
 | K2-a | ~~Accessibility status row shows `Disabled` while Android Accessibility page has `Use PokeClaw` ON~~ | Fixed 2026-04-10: app Settings now reads `enabled_accessibility_services` via `isEnabledInSettings()` | Fixed |

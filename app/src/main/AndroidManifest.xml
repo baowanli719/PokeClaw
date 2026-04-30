@@ -98,6 +98,15 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".automation.ExternalAutomationReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.agents.pokeclaw.RUN_TASK" />
+                <action android:name="io.agents.pokeclaw.RUN_CHAT" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".service.ClawNotificationListener"
             android:exported="true"

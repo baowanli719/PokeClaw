@@ -21,6 +21,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import io.agents.pokeclaw.R
 import io.agents.pokeclaw.base.BaseActivity
 import io.agents.pokeclaw.widget.AlertDialog
+import io.agents.pokeclaw.widget.ConfirmDialog
 import io.agents.pokeclaw.widget.CommonToolbar
 import io.agents.pokeclaw.widget.MenuGroup
 import io.agents.pokeclaw.widget.MenuItem
@@ -57,6 +58,7 @@ class SettingsActivity : BaseActivity() {
     private var permOverlay: io.agents.pokeclaw.widget.MenuItem? = null
     private var permBattery: io.agents.pokeclaw.widget.MenuItem? = null
     private var permStorage: io.agents.pokeclaw.widget.MenuItem? = null
+    private var externalAutomationItem: io.agents.pokeclaw.widget.MenuItem? = null
 
     private val viewModel by lazy {
         ViewModelProvider(this)[SettingsViewModel::class.java]
@@ -104,6 +106,7 @@ class SettingsActivity : BaseActivity() {
         super.onResume()
         refreshSettings()
         refreshPermissions()
+        refreshExternalAutomation()
         handler.removeCallbacks(permPoller)
         handler.postDelayed(permPoller, 1000)
     }
@@ -121,6 +124,12 @@ class SettingsActivity : BaseActivity() {
         permOverlay?.setTrailingText(if (capabilities.overlayGranted) "Enabled" else "Disabled")
         permBattery?.setTrailingText(if (capabilities.batteryOptimizationIgnored) "Unrestricted" else "Restricted")
         permStorage?.setTrailingText(if (capabilities.storageAccessGranted) "Enabled" else "Disabled")
+    }
+
+    private fun refreshExternalAutomation() {
+        externalAutomationItem?.setTrailingText(
+            if (KVUtils.isExternalAutomationEnabled()) "Enabled" else "Disabled"
+        )
     }
 
     private fun initToolbar() {
@@ -158,6 +167,28 @@ class SettingsActivity : BaseActivity() {
 
     private fun refreshSettings() {
         viewModel.refresh()
+    }
+
+    private fun toggleExternalAutomation() {
+        if (KVUtils.isExternalAutomationEnabled()) {
+            KVUtils.setExternalAutomationEnabled(false)
+            refreshExternalAutomation()
+            Toast.makeText(this, "External Automation disabled", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        ConfirmDialog.showWarm(
+            context = this,
+            title = "Enable External Automation?",
+            message = "This lets trusted apps like Tasker, MacroDroid, or ADB start PokeClaw tasks with explicit Android intents. Keep it off unless you control the automation that will call it.",
+            actionTitle = "Enable",
+            cancelTitle = getString(R.string.common_cancel),
+            onAction = {
+                KVUtils.setExternalAutomationEnabled(true)
+                refreshExternalAutomation()
+                Toast.makeText(this, "External Automation enabled", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 
     private fun initMenuGroups() {
@@ -340,6 +371,15 @@ class SettingsActivity : BaseActivity() {
         ).apply {
             val token = KVUtils.getTelegramBotToken()
             setTrailingText(if (token.isNotEmpty()) "Connected" else "Not connected")
+        }
+
+        externalAutomationItem = remoteGroup.addMenuItem(
+            leadingIcon = android.R.drawable.ic_menu_share,
+            title = "External Automation",
+            onClick = { toggleExternalAutomation() },
+            showDivider = true
+        ).apply {
+            setTrailingText(if (KVUtils.isExternalAutomationEnabled()) "Enabled" else "Disabled")
         }
 
         remoteGroup.addMenuItem(

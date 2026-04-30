@@ -165,6 +165,11 @@ object KVUtils {
     fun isConfigServerEnabled(): Boolean = getBoolean(KEY_CONFIG_SERVER_ENABLED, false)
     fun setConfigServerEnabled(enabled: Boolean) = putBoolean(KEY_CONFIG_SERVER_ENABLED, enabled)
 
+    // ==================== External Automation ====================
+    private const val KEY_EXTERNAL_AUTOMATION_ENABLED = "KEY_EXTERNAL_AUTOMATION_ENABLED"
+    fun isExternalAutomationEnabled(): Boolean = getBoolean(KEY_EXTERNAL_AUTOMATION_ENABLED, false)
+    fun setExternalAutomationEnabled(enabled: Boolean) = putBoolean(KEY_EXTERNAL_AUTOMATION_ENABLED, enabled)
+
     private const val KEY_PENDING_ACCESSIBILITY_RETURN = "KEY_PENDING_ACCESSIBILITY_RETURN"
     private const val KEY_PENDING_ACCESSIBILITY_RETURN_AT = "KEY_PENDING_ACCESSIBILITY_RETURN_AT"
     private const val KEY_PENDING_NOTIFICATION_ACCESS_RETURN = "KEY_PENDING_NOTIFICATION_ACCESS_RETURN"

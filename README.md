@@ -122,6 +122,23 @@ Examples that should usually be treated as model-performance or exploratory-agen
 
 Prompts, tools, skills, and playbooks should stay generic. Add structure when it improves a reusable class of tasks; avoid one-off prompt hacks or coordinate scripts just to make a single demo pass.
 
+### Deployment Positioning
+
+There are already strong mobile-agent frameworks for developers, benchmarks, and cloud/desktop-controlled devices. DroidRun/Mobilerun, minitap/mobile-use, Mobile-Agent, and AppAgent-style systems are useful references, especially for planning, UI observation, benchmark design, and failure recovery. They are not the same deployment category as PokeClaw:
+
+- DroidRun/Mobilerun local/open-source runs the agent loop in a Python CLI/container on a host machine and talks to a Portal APK through ADB/port forwarding. The Portal APK uses Android Accessibility for tree/gesture/screenshot capture, but it is not where the local LLM agent loop runs. Its phone-initiated path is cloud-backed.
+- minitap/mobile-use, Mobile-Agent, AppAgent, and AppAgentX are external SDK/research harnesses that normally require Python plus ADB, UIAutomator, screenshots, Docker, cloud phones, or host-side model/API services.
+
+PokeClaw should not try to become another PC/SDK/ADB-driven mobile automation framework. Its product lane is different:
+
+- runs as an Android app on the user's own phone
+- does not require a computer to be connected while tasks run
+- uses Accessibility, Notification Access, foreground service, storage, and Android lifecycle handling inside the phone app
+- runs the task loop inside the installed APK, with local LiteRT-LM or optional cloud LLMs behind the same harness
+- exposes integration points for power users without making Tasker, MacroDroid, ADB, or a cloud phone fleet mandatory
+
+External automation tools are still useful. Tasker, MacroDroid, Locale, and similar apps are good deterministic trigger engines. PokeClaw should let them trigger an AI task, but PokeClaw should remain the phone-resident execution harness.
+
 ## See the UI
 
 👉 **[Try the interactive demo on our landing page](https://agents-io.github.io/PokeClaw/)** — click through every screen without installing anything.
@@ -275,6 +292,8 @@ This is the current direction for PokeClaw based on real device testing, open is
 ### Near-term
 
 - **Stabler public releases and upgrades.** The release/signing path is being locked down so future public APKs upgrade cleanly instead of falling back to uninstall/reinstall behavior from the older debug-signed builds.
+- **External automation input.** Tasker, MacroDroid, Locale, and similar Android automation tools are strong deterministic trigger engines. PokeClaw now exposes a production, user-enabled intent API so those tools can decide when to trigger and PokeClaw can handle the open-ended AI task execution. Next work is richer recipes, cancellation/status actions, and Tasker/MacroDroid callback-consumer QA.
+- **Persistent instructions and scoped rules.** PokeClaw needs an inspectable instruction stack: hard platform/tool safety in code, user global instructions, app/channel-scoped rules, explicit user-approved memory, then the current task prompt. Screen, notification, and web content should remain untrusted context, not higher-priority instructions.
 - **Missed-call auto follow-up.** A high-priority use case is: someone calls, you miss it, and PokeClaw automatically sends a follow-up message to that caller and keeps the status visible in the same chatroom. The preferred first path is SMS/API-first. WhatsApp follow-up is only worth adding if there is a reliable non-UI route; otherwise it should stay an explicit fallback path, not the core design.
 - **Lower-RAM local model options.** Right now the built-in local model choices are still too heavy for a lot of mid-range phones. Smaller on-device models are high priority.
 - **More small local models for real device coverage.** 1B–1.5B class models for lower-end phones are on the roadmap so more devices can at least run a usable local agent instead of being locked out by RAM limits.
@@ -288,13 +307,88 @@ This is the current direction for PokeClaw based on real device testing, open is
 - **Custom local model sources.** We want PokeClaw to go beyond a fixed built-in catalog and support user-defined model sources, including direct downloads from Hugging Face or other hosted URLs.
 - **Google AI Core / system local AI integration.** We are tracking Android's newer on-device AI stack so PokeClaw can eventually use official system-level local model APIs where they make sense, instead of relying on a single runtime path forever.
 - **More built-in workflows.** More quick-task / skill coverage is planned beyond the first WhatsApp-centric workflows.
-- **Remote control / remote conversation flows.** Controlling a phone from another device is a real request and is on the longer roadmap, but it is not the current top priority compared with local reliability and device coverage.
+- **Remote control / remote conversation flows.** Controlling a phone from another device is a real request. Telegram bot control is the first concrete path being tested; it needs clear token setup, polling status, and true end-to-end QA with an account that can start and message the bot.
+- **Voice input.** A microphone button is a useful prompt input path. The first version should be explicit push-to-talk; wake-word/background listening needs a separate privacy, permission, and battery design.
 
 ### Known platform constraints
 
 - **Edge Gallery model detection is not fully under our control.** Android hides other apps' `Android/data/...` sandboxes from normal file-pickers, so PokeClaw cannot generically "see" Edge Gallery's downloaded models unless they are exported into a user-accessible location first.
 - **GPU support is runtime and device specific.** If a device can run GPU in another app but PokeClaw falls back to CPU, the next step is a debug report with device, ROM, model, selected backend, delegate init, and fallback logs. PokeClaw should keep CPU fallback safe and truthful instead of forcing GPU blindly.
 - **Sideload + accessibility apps may trigger OEM security warnings.** Samsung / Play Protect warnings are being addressed through a cleaner release/signing path, but sideload trust prompts are partly controlled by the platform and OEM policy.
+- **Cloud mobile-agent harnesses already exist.** PokeClaw should not compete as a cloud phone farm or desktop-controlled ADB framework. The durable product direction is a phone-resident Android harness that can run on the user's own device, slot local or cloud models, and survive real Accessibility, Notification, storage, permission, and OEM lifecycle constraints.
+- **Telegram bot control requires a writable account state.** A Telegram bot cannot cold-message a user who has not started the bot, and a frozen/read-only Telegram account cannot complete the required `/start` or task-message step. Treat this as an environment blocker, not a PokeClaw channel failure.
+
+### External Automation API
+
+PokeClaw exposes a user-enabled Android intent entrypoint for Tasker, MacroDroid, Locale, ADB, and other trusted local automation tools.
+
+The setting is off by default. Enable it from `Settings -> Remote Control -> External Automation`.
+
+#### MacroDroid verified E2E
+
+The external automation contract is designed for Tasker, MacroDroid, Locale, and similar Android automation apps. The verified end-to-end path today is MacroDroid.
+
+Verified on a Pixel 8 Pro on 2026-04-30:
+
+- MacroDroid macro trigger: `Shortcut Launched`
+- MacroDroid action: `Send Intent`
+- Intent target: `Broadcast`
+- Intent action: `io.agents.pokeclaw.RUN_TASK`
+- Package: `io.agents.pokeclaw`
+- Extra: `task = how much battery left`
+- Result: MacroDroid launched the broadcast, PokeClaw accepted it, executed the deterministic battery tool, and returned `Battery: 83%, not charging, 38.1°C` in the PokeClaw chatroom.
+
+MacroDroid setup:
+
+1. In PokeClaw, enable `Settings -> Remote Control -> External Automation`.
+2. In MacroDroid, create a new macro.
+3. Add any trigger you want. For a simple smoke test, use `User Input -> Shortcut Launched`.
+4. Add action `Device Actions -> Send Intent`.
+5. Set `Target` to `Broadcast`.
+6. Set `Action` to `io.agents.pokeclaw.RUN_TASK`.
+7. Set `Package` to `io.agents.pokeclaw`.
+8. Leave `Class`, `Data`, and `MIME type` empty unless you need a more specific Android intent shape.
+9. Set `Extra 1` name to `task`.
+10. Set `Extra 1` value to the task text, for example `how much battery left`.
+11. Save the macro, then run MacroDroid's `Test macro`.
+
+Expected result: PokeClaw opens, records the task in the chatroom, runs the task through the normal harness, and shows the result. The intent does not bypass PokeClaw safety, permissions, or tool rules.
+
+For chat instead of task mode, use:
+
+- Intent action: `io.agents.pokeclaw.RUN_CHAT`
+- Extra name: `chat`
+- Extra value: the chat message
+
+The same pattern should work from Tasker or Locale-style tools as long as they send an explicit/targeted Android broadcast to the PokeClaw package.
+
+Task example:
+
+```bash
+adb shell am broadcast \
+  -a io.agents.pokeclaw.RUN_TASK \
+  -p io.agents.pokeclaw \
+  --es task "Summarize my notifications and tell me what is urgent"
+```
+
+Chat example:
+
+```bash
+adb shell am broadcast \
+  -a io.agents.pokeclaw.RUN_CHAT \
+  -p io.agents.pokeclaw \
+  --es chat "What can you see on my phone right now?"
+```
+
+Supported extras:
+
+- `task` / `task_b64`
+- `chat` / `chat_b64`
+- `request_id`
+- `return_action`
+- `return_package`
+
+If `return_action` is provided, PokeClaw sends callback broadcasts with `status`, `request_id`, and either `result` or `error`. Current statuses are `accepted`, `completed`, `failed`, `cancelled`, `blocked`, and `rejected`. `RUN_TASK` sends `accepted` plus a terminal callback; `RUN_CHAT` currently sends only the immediate `accepted` callback.
 
 ### Where feature requests go
 
@@ -305,6 +399,10 @@ If you want something added, please open an issue. The roadmap above is intentio
 - importing your own local models
 - custom local model sources / hosted downloads
 - Android AI Core / official on-device AI support
+- Prompt from Intent / Tasker / MacroDroid integration
+- persistent global instructions, scoped app rules, and explicit memory
+- voice input and push-to-talk prompting
+- Telegram bot remote control
 - cleaner upgrade/install paths
 - remote control from another phone
 - broader distribution paths like F-Droid
@@ -320,6 +418,16 @@ PokeClaw is moving fast, and the roadmap is being shaped directly by real device
 Every star helps more people find the project. Every issue helps shape the next release.
 
 ## Changelog
+
+### v0.6.11 (2026-04-30)
+- **External Automation is now a production feature.** PokeClaw exposes user-enabled `RUN_TASK` and `RUN_CHAT` Android broadcast entrypoints for MacroDroid, Tasker, Locale-style automation apps, and ADB callers.
+- **MacroDroid E2E is verified.** A real MacroDroid `Send Intent` macro successfully triggered PokeClaw, ran `how much battery left`, and returned the live battery result in the PokeClaw chatroom.
+- **External task intents no longer wait on chat model readiness.** Task payloads now go straight through the task harness, so deterministic/direct tasks can run even on a clean install with no LLM selected.
+- **Direct device-data tasks run before LLM/accessibility gates.** Requests such as battery status now use the deterministic device-data tool first instead of being blocked by missing model config when the task does not need an LLM.
+- **External Automation has a safe opt-in UI.** `Settings -> Remote Control -> External Automation` is off by default and shows a confirmation before allowing trusted local automation apps to call PokeClaw.
+- **Callback contract is in place.** `RUN_TASK` supports immediate `accepted` and terminal `completed` / `failed` / `cancelled` / `blocked` / `rejected` callback statuses when callers provide a return action. True callback-consumer E2E remains open for a Tasker/MacroDroid receiver profile.
+- **Product direction is clearer.** The README now records the no-PC, phone-resident, local-first harness lane and distinguishes PokeClaw from PC/ADB/cloud mobile-agent frameworks.
+- **Install note for early testers.** If Android reports a package/signature conflict from an older debug or early signed APK, uninstall that old build once and then install this stable signed release.
 
 ### v0.6.10 (2026-04-28)
 - **Model storage hotfix for ROM-specific download failures.** PokeClaw now requires the selected model directory to be writable, not merely present, before using it for large `.litertlm` downloads.
