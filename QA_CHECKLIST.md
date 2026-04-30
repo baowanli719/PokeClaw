@@ -489,10 +489,10 @@ Copy this block into the current coverage snapshot or QA debug changelog for eve
 - [x] Scope gate: no prompt/skill/playbook one-off was added solely to make a flaky task pass.
 - [x] Unit/compile gate: `./gradlew testDebugUnitTest assembleDebug` passed.
 - [x] Script hygiene gate: `bash -n scripts/e2e-quick-tasks.sh && git diff --check` passed.
-- [x] Artifact gate: local debug artifact built; signed release artifact is produced by the tag-triggered GitHub Actions release workflow using repository signing secrets.
+- [x] Artifact gate: local debug artifact built; tag-triggered GitHub Actions release workflow produced signed APK `PokeClaw_v0.6.12_20260430_174625.apk`, SHA-256 `62d9dbb1cc00299892ec0ba229b128d4be018caba589c5a15429ea500c8b8fbe`.
 - [x] Targeted regression gate: `ExternalAutomationContractTest` covers task/chat parsing, base64 payloads, callback metadata, unknown action rejection, and missing payload rejection.
-- [x] Device smoke gate: Pixel 8 Pro MacroDroid `Send Intent` E2E uses the exported Activity target on modern Android; debug v0.6.12 Activity-target E2E passed, and signed release v0.6.12 must rerun the same MacroDroid flow before user follow-up.
-- [x] Distribution gate: release is tag-workflow based; final signed APK/checksum must be verified from the GitHub release before user follow-up.
+- [x] Device smoke gate: Pixel 8 Pro MacroDroid `Send Intent` E2E uses the exported Activity target on modern Android; debug and signed v0.6.12 Activity-target E2E passed.
+- [x] Distribution gate: GitHub release `v0.6.12` published with signed APK `PokeClaw_v0.6.12_20260430_174625.apk`, SHA-256 `62d9dbb1cc00299892ec0ba229b128d4be018caba589c5a15429ea500c8b8fbe`.
 - [x] User-followup gate: affected GitHub/Reddit users should be pointed to v0.6.12 for External Automation / MacroDroid / direct-device task retesting.
 - Known misses:
   - `BLOCKED`: Tasker-specific E2E is blocked by Play Store purchase requirement on the QA phone; MacroDroid E2E is verified.
@@ -1356,6 +1356,7 @@ Format: `[date] [status] [test-id] description`
 [2026-04-30] [BLOCKED] ExtAuto-r3-v0611-signed  Signed v0.6.11 broadcast receiver received the request but Android 16 / targetSdk 36 blocked the receiver from opening `ComposeChatActivity` from background. Do not direct users to v0.6.11 for external automation.
 [2026-04-30] [FIXED]   ExtAuto-r4-activity-entry  Added exported transparent `ExternalAutomationActivity` so MacroDroid/Tasker/Locale-style apps can launch PokeClaw as an Activity with the same `RUN_TASK` / `RUN_CHAT` contract, avoiding background-activity-launch blocking.
 [2026-04-30] [PASS]    MacroDroid-extauto-activity-e2e  Pixel 8 Pro debug v0.6.12 smoke: MacroDroid `Send Intent` Target=`Activity`, Package=`io.agents.pokeclaw`, Class=`io.agents.pokeclaw.automation.ExternalAutomationActivity`, Action=`io.agents.pokeclaw.RUN_TASK`, extra `task=how much battery left`; MacroDroid `Test macro` launched PokeClaw, logged `Accepted external automation TASK`, ran the deterministic direct tool, and visibly returned `Battery: 100%, not charging, 36.0°C`.
+[2026-04-30] [PASS]    Rel-v0612-signed-macrodroid  Pixel 8 Pro signed-release smoke: clean-installed signed `v0.6.12` (`versionCode=27`, release signature fingerprint prefix `745eed92`), enabled External Automation from Settings, reran the same MacroDroid Activity-target macro, and visibly returned `Battery: 100%, charging, 35.2°C` in the PokeClaw chatroom.
 ```
 
 ### Bugs Found During v9 QA
