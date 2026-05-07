@@ -557,6 +557,46 @@ Run the full release-candidate sheet only after the reconstruction phases stop m
 - convert `BLOCKED` vs `FAIL` vs `PASS` into a real release decision
 - verify device coverage across local/cloud/runtime/permissions/release-upgrade paths
 
+## Cloud Bridge — Threading Model & Offline Persistence
+
+### Threading Model
+
+The Cloud Bridge uses a **single dispatcher thread** (`bridge-dispatcher`) for all internal state mutations:
+
+- A `ScheduledExecutorService` (`Executors.newSingleThreadScheduledExecutor`) is created at `CloudBridgeClient` construction time.
+- **All** Bridge internal state (connection state, in-flight task, outbox file handle, backoff counter, heartbeat timer) is read/written **only on the dispatcher thread**.
+- OkHttp `WebSocketListener` callbacks are posted to the dispatcher before touching state.
+- `HeartbeatScheduler`, deadline monitoring, and stale-connection scanning use `dispatcher.schedule(...)`.
+- `TaskExecutor` callbacks (which may arrive on any thread) are posted to the dispatcher before processing.
+- `observeState()` returns a `StateFlow` — thread-safe for UI collection on Main dispatcher.
+- The Bridge has **zero coupling** to Android's main thread (`Looper.getMainLooper()` is never used).
+- `stop()` / `start()` / `reconfigure()` from external threads post commands into the dispatcher and block on `Future.get()` for synchronous semantics.
+
+This model eliminates the need for locks or synchronized blocks inside Bridge code.
+
+### OfflineOutbox Persistence
+
+`OfflineOutbox` is a disk-backed FIFO queue for **terminal task frames** (`task.accepted`, `task.result`, `task.error`). Non-terminal frames (`task.progress`, `heartbeat`, `pong`) are never persisted — they are soft signals that can be safely lost.
+
+Key design decisions:
+
+- **Storage path**: `filesDir/bridge/outbox.jsonl` (JSON Lines format, one frame per line).
+- **Capacity**: 200 entries max; overflow uses **drop-oldest** strategy.
+- **Drain trigger**: Entering `Authenticated` state triggers automatic drain — frames are sent in FIFO order, one at a time; each is removed only after successful send.
+- **Failure during drain**: If the connection drops mid-drain, remaining entries stay in the file for the next reconnection.
+- **Thread safety**: All reads/writes happen on the bridge dispatcher thread — no cross-thread locking needed.
+- **Corruption tolerance**: On startup, unparseable lines are skipped with a warning log.
+
+### Boundary Enforcement
+
+A custom detekt rule (`BridgeBoundaryRule`) scans all `.kt` files under `io/agents/pokeclaw/bridge/` and fails if any file imports a concrete class from other `io.agents.pokeclaw.*` sub-packages. This runs as part of `./gradlew detekt` in CI.
+
+### Mandatory QA bundle for Bridge changes
+
+- Integration tests: `app/src/test/java/io/agents/pokeclaw/bridge/integration/`
+- Property tests: `app/src/test/java/io/agents/pokeclaw/bridge/` (jqwik-based)
+- detekt boundary check: `./gradlew detekt`
+
 ## What Should Not Happen
 
 - No mega-branch that rewrites chat, task, accessibility, and models at once.

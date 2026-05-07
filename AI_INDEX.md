@@ -32,6 +32,57 @@ This is the repo map for coding agents. Keep canonical information in existing f
 | `mockup/` | Early interactive mockups |
 | `signatures/` | CLA signature state |
 
+## Cloud Bridge
+
+PokeClaw includes a Cloud Bridge client that maintains a persistent WebSocket connection to the PokeClaw Cloud Bridge Service, enabling cloud-initiated task dispatch to the device.
+
+### Package Structure
+
+The Bridge lives in `io.agents.pokeclaw.bridge` with the following sub-packages:
+
+| Sub-package | Purpose |
+|---|---|
+| `bridge/` (root) | `CloudBridgeClient` facade, `ConnectionState` sealed class |
+| `bridge/api/` | Four injected interfaces: `TaskExecutor`, `CapabilityProvider`, `ConfigSource`, `BridgeLogger` |
+| `bridge/protocol/` | `Frame` sealed class hierarchy, `FrameCodec` (Gson), payload data classes |
+| `bridge/connection/` | `ConnectionManager`, `BackoffPolicy`, `NetworkMonitor` |
+| `bridge/task/` | `TaskBridge`, `InFlightTask` |
+| `bridge/queue/` | `OfflineOutbox` (jsonl-backed terminal-frame store) |
+| `bridge/internal/` | `Clock`, `BridgeDispatcher` (test seams) |
+
+App-side adapters live in `io.agents.pokeclaw.cloudbridge` (outside the bridge boundary):
+
+- `TaskOrchestratorExecutorAdapter` — implements `TaskExecutor`
+- `AppCapabilityProviderAdapter` — implements `CapabilityProvider`
+- `KVUtilsConfigSource` — implements `ConfigSource`
+- `XLogBridgeLogger` — implements `BridgeLogger`
+
+### Public Facade
+
+`CloudBridgeClient` is the only public entry point. It exposes:
+
+- `start()` / `stop()` — idempotent lifecycle control
+- `reconfigure()` — re-reads config and reconnects if parameters changed
+- `observeState(): StateFlow<ConnectionState>` — hot state stream for UI
+- `currentState(): ConnectionState` — snapshot read, thread-safe
+
+### Boundary Enforcement
+
+A custom detekt rule (`BridgeBoundaryRule`) enforces that no file inside `io.agents.pokeclaw.bridge` imports concrete classes from other `io.agents.pokeclaw.*` sub-packages. The Gradle task `checkBridgeBoundary` (via `./gradlew detekt`) runs in CI and blocks PRs on violation.
+
+### Related Spec
+
+Full design and requirements: `.kiro/specs/android-cloud-bridge/`
+
+### Configuration Keys
+
+| Key | Type | Description |
+|---|---|---|
+| `cloud_bridge_url` | String | WebSocket server URL (e.g. `wss://bridge.pokeclaw.dev/ws/device`). Empty or absent → Bridge stays `DISCONNECTED`, no connection attempt. |
+| `cloud_bridge_device_token` | String | Bearer token for device authentication. Empty or absent → Bridge stays `DISCONNECTED`, no connection attempt. |
+
+**Token masking policy**: The Bridge never logs the token in plaintext. All log output masks the token as `***<last4>` (e.g. a token ending in `ab3f` appears as `***ab3f`). This is enforced at the `BridgeLogger` adapter level and verified by property tests.
+
 ## Direction Rules
 
 - PokeClaw is a generic Android mobile-agent harness with a product shell on top.

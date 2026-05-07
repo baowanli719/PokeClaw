@@ -233,12 +233,24 @@ class ForegroundService : Service() {
             return
         }
         healthHandler.post(healthRunnable)
+        // Start CloudBridge when foreground service is active
+        try {
+            io.agents.pokeclaw.cloudbridge.CloudBridgeHolder.client?.start()
+        } catch (e: Exception) {
+            XLog.w(TAG, "CloudBridge start failed", e)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         _isRunning = false
         healthHandler.removeCallbacksAndMessages(null)
+        // Stop CloudBridge when foreground service is destroyed
+        try {
+            io.agents.pokeclaw.cloudbridge.CloudBridgeHolder.client?.stop()
+        } catch (e: Exception) {
+            XLog.w(TAG, "CloudBridge stop failed", e)
+        }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {

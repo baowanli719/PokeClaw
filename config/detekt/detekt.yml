@@ -1,0 +1,38 @@
+# Detekt configuration for PokeClaw
+# Only enables the custom bridge-boundary rule set
+
+build:
+  maxIssues: 0
+
+complexity:
+  active: false
+naming:
+  active: false
+style:
+  active: true
+  ForbiddenImport:
+    active: true
+    imports:
+      - 'io.agents.pokeclaw.TaskOrchestrator'
+      - 'io.agents.pokeclaw.TaskSessionStore'
+      - 'io.agents.pokeclaw.ClawApplication'
+      - 'io.agents.pokeclaw.AppCapabilityCoordinator'
+      - 'io.agents.pokeclaw.utils.KVUtils'
+      - 'io.agents.pokeclaw.utils.XLog'
+      - 'io.agents.pokeclaw.service.ForegroundService'
+potential-bugs:
+  active: false
+performance:
+  active: false
+exceptions:
+  active: false
+empty-blocks:
+  active: false
+comments:
+  active: false
+coroutines:
+  active: false
+
+# Custom rule set is loaded via the detekt plugin classpath
+# The checkBridgeBoundary Gradle task provides regex-based
+# import boundary enforcement for the bridge package.

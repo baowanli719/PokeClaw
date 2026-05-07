@@ -17,6 +17,7 @@ enum class Channel(val displayName: String) {
     TELEGRAM("Telegram"),
     WECHAT("WeChat"),
     LOCAL("Local"),
+    CLOUD("Cloud"),
 }
 
 object ChannelManager {

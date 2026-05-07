@@ -56,6 +56,11 @@ class ClawApplication : BaseApp() {
                     appViewModelInstance.initAgent()
                     appViewModelInstance.afterInit()
                 }
+                // Assemble CloudBridgeClient (does NOT start it — ForegroundService does)
+                io.agents.pokeclaw.cloudbridge.CloudBridgeHolder.init(
+                    instance,
+                    appViewModelInstance.taskOrchestrator,
+                )
             } catch (e: Exception) {
                 android.util.Log.e("POKECLAW_INIT", "app-async-init CRASHED: ${e.message}", e)
             }

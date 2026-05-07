@@ -218,6 +218,35 @@ PokeClaw gives a small on-device LLM a set of tools (tap, swipe, type, open app,
 
 Local execution runs via [LiteRT-LM](https://ai.google.dev/edge/litert/llm/overview) with native tool calling. In Local mode, the model runs on-device.
 
+## Cloud Bridge
+
+PokeClaw includes an optional Cloud Bridge client that maintains a persistent WebSocket connection to the PokeClaw Cloud Bridge Service. This allows cloud-initiated task dispatch — the cloud can push a task to the device without the user manually triggering it.
+
+The Bridge runs inside the app process but is architecturally isolated in its own package (`io.agents.pokeclaw.bridge`). It communicates with the rest of the app exclusively through four injected interfaces (`TaskExecutor`, `CapabilityProvider`, `ConfigSource`, `BridgeLogger`), making it independently testable and evolvable.
+
+Key capabilities:
+
+- Outbound WSS connection with TLS and Bearer token auth
+- `hello` / `hello.ack` handshake with capability advertisement
+- Periodic heartbeat with busy/idle status
+- Exponential backoff reconnection (1s → 60s cap), instant retry on network restore
+- Single-task mutual exclusion with deadline monitoring
+- Offline terminal-frame persistence (`OfflineOutbox`) and replay on reconnect
+- Graceful handling of unknown frame types and malformed JSON (never crashes the host app)
+
+Cloud Bridge is disabled by default. It activates only when both `cloud_bridge_url` and `cloud_bridge_device_token` are configured.
+
+### Cloud Bridge Configuration
+
+| Setting | Description |
+|---|---|
+| `cloud_bridge_url` | WebSocket server URL (e.g. `wss://bridge.pokeclaw.dev/ws/device`). Leave empty to keep Bridge disabled. |
+| `cloud_bridge_device_token` | Bearer token for device authentication. Leave empty to keep Bridge disabled. |
+
+Both values must be non-empty for the Bridge to attempt a connection. If either is missing, the Bridge remains in `DISCONNECTED` state and consumes no resources.
+
+**Token security**: The token is never logged in plaintext. All diagnostic output masks it as `***<last4>` (only the last 4 characters are visible).
+
 ## Tools
 
 The LLM has access to these tools and picks them autonomously:

@@ -9,6 +9,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
+    id("io.gitlab.arturbosch.detekt") version "1.23.6"
 }
 
 fun readLocalOrEnvString(key: String, defaultValue: String = ""): String {
@@ -106,6 +107,12 @@ android {
             )
         }
     }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
 }
 
 dependencies {
@@ -165,6 +172,12 @@ dependencies {
 
 
     testImplementation(libs.junit)
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
+    testImplementation("net.jqwik:jqwik:1.8.4")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.assertj:assertj-core:3.25.3")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
@@ -258,4 +271,61 @@ fun getParameter(key: String, defaultValue: String): String {
     }
     println("get property[$key] from default:$value")
     return value
+}
+
+/**
+ * Static boundary check: ensures files inside the bridge package
+ * do NOT import from the host app packages (io.agents.pokeclaw.*)
+ * except for sub-packages of bridge itself (io.agents.pokeclaw.bridge.*).
+ *
+ * This enforces architectural isolation of the bridge module.
+ */
+tasks.register("checkBridgeBoundary") {
+    group = "verification"
+    description = "Checks that bridge package files do not import host app internals"
+
+    doLast {
+        val bridgeDir = file("src/main/java/io/agents/pokeclaw/bridge")
+        if (!bridgeDir.exists()) {
+            logger.lifecycle("Bridge directory not found, skipping check.")
+            return@doLast
+        }
+
+        val violatingImport = Regex(
+            """^\s*import\s+io\.agents\.pokeclaw\.(?!bridge\.).*"""
+        )
+
+        val violations = mutableListOf<String>()
+
+        bridgeDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { file ->
+                file.readLines().forEachIndexed { index, line ->
+                    if (violatingImport.matches(line)) {
+                        violations.add(
+                            "${file.relativeTo(projectDir)}:${index + 1}: $line"
+                        )
+                    }
+                }
+            }
+
+        if (violations.isNotEmpty()) {
+            val msg = buildString {
+                appendLine("Bridge boundary violation(s) detected!")
+                appendLine("Files in io.agents.pokeclaw.bridge must NOT")
+                appendLine("import from io.agents.pokeclaw.* (host app).")
+                appendLine()
+                violations.forEach { appendLine("  • $it") }
+            }
+            throw GradleException(msg)
+        } else {
+            logger.lifecycle("checkBridgeBoundary: OK (no violations)")
+        }
+    }
+}
+
+detekt {
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    buildUponDefaultConfig = false
+    allRules = false
 }

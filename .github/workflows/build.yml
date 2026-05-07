@@ -31,6 +31,9 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
+      - name: Check bridge boundary
+        run: ./gradlew :app:checkBridgeBoundary
+
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
