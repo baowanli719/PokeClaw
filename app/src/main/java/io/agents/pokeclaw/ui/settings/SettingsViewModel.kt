@@ -12,6 +12,7 @@ import io.agents.pokeclaw.R
 import io.agents.pokeclaw.agent.llm.ActiveModelMode
 import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.channel.ChannelManager
+import io.agents.pokeclaw.cloudbridge.KVUtilsConfigSource
 import io.agents.pokeclaw.server.ConfigServerManager
 import io.agents.pokeclaw.utils.KVUtils
 import io.agents.pokeclaw.widget.QRCodeDialog
@@ -49,7 +50,8 @@ class SettingsViewModel : ViewModel() {
             MenuAction.DISCORD.name to SettingValue.Text(ClawApplication.instance.getString(if (discordBotToken) R.string.common_bound else R.string.common_unbound)),
             MenuAction.TELEGRAM.name to SettingValue.Text(ClawApplication.instance.getString(if (telegramBotToken) R.string.common_bound else R.string.common_unbound)),
             MenuAction.WECHAT.name to SettingValue.Text(ClawApplication.instance.getString(if (wechatBotToken) R.string.common_bound else R.string.common_unbound)),
-            MenuAction.LAN_CONFIG.name to SettingValue.Text(getLanConfigTrailingText())
+            MenuAction.LAN_CONFIG.name to SettingValue.Text(getLanConfigTrailingText()),
+            MenuAction.CLOUD_BRIDGE.name to SettingValue.Text(getCloudBridgeTrailingText())
         )
         _settingItems.value = map
     }
@@ -214,6 +216,16 @@ class SettingsViewModel : ViewModel() {
         }
     }
 
+    private fun getCloudBridgeTrailingText(): String {
+        val url = KVUtils.getString(KVUtilsConfigSource.KEY_CLOUD_BRIDGE_URL, "")
+        val token = KVUtils.getString(KVUtilsConfigSource.KEY_CLOUD_BRIDGE_DEVICE_TOKEN, "")
+        return if (url.isNotBlank() && token.isNotBlank()) {
+            "Configured"
+        } else {
+            "Not configured"
+        }
+    }
+
     fun isDiscordBound(): Boolean {
         return KVUtils.getDiscordBotToken().isNotEmpty()
     }
@@ -287,6 +299,7 @@ class SettingsViewModel : ViewModel() {
     enum class MenuAction {
         DISCORD, TELEGRAM, WECHAT,
         LAN_CONFIG,
+        CLOUD_BRIDGE,
         LLM_CONFIG
     }
 }

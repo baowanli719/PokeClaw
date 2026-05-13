@@ -23,13 +23,14 @@ class DBEngine:
 
     async def init(self, dsn: str) -> None:
         """Initialize the async engine with connection pooling."""
-        self._engine = create_async_engine(
-            dsn,
-            pool_size=5,
-            max_overflow=10,
-            pool_recycle=3600,
-            echo=False,
-        )
+        engine_kwargs = {"echo": False}
+        if not dsn.startswith("sqlite"):
+            engine_kwargs.update(
+                pool_size=5,
+                max_overflow=10,
+                pool_recycle=3600,
+            )
+        self._engine = create_async_engine(dsn, **engine_kwargs)
         self._session_factory = async_sessionmaker(
             self._engine, expire_on_commit=False
         )

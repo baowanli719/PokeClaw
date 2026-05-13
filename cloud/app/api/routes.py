@@ -46,7 +46,21 @@ async def get_task(request_id: str):
     """Query task status and result."""
     record = task_dispatcher.get_task(request_id)
     if record is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        persisted = await persistence.get_task_log(request_id)
+        if persisted is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return TaskStatusResponse(
+            request_id=persisted.request_id,
+            device_id=persisted.device_id,
+            kind=persisted.kind,
+            status=persisted.status,
+            dispatched_at=persisted.dispatched_at,
+            accepted_at=persisted.accepted_at,
+            completed_at=persisted.completed_at,
+            result=persisted.result_summary,
+            error_code=persisted.error_code,
+            error_message=persisted.error_message,
+        )
     return TaskStatusResponse(
         request_id=record.request_id,
         device_id=record.device_id,

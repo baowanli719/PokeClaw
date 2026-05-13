@@ -7,6 +7,7 @@ Uses httpx + websockets against the in-process FastAPI app.
 import asyncio
 import json
 import time
+from types import SimpleNamespace
 
 import pytest
 import httpx
@@ -98,3 +99,35 @@ async def test_submit_task_validation_error(app, admin_headers):
             headers=admin_headers,
         )
         assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_task_falls_back_to_persisted_log(app, admin_headers, monkeypatch):
+    """Task lookup survives loss of the in-memory dispatcher record."""
+    from app.api import routes
+
+    monkeypatch.setattr(routes.task_dispatcher, "get_task", lambda request_id: None)
+
+    async def fake_get_task_log(request_id):
+        return SimpleNamespace(
+            request_id=request_id,
+            device_id="phone-01",
+            kind="ths.sync_holdings",
+            status="completed",
+            dispatched_at="2026-05-06T10:15:22+00:00",
+            accepted_at="2026-05-06T10:15:23+00:00",
+            completed_at="2026-05-06T10:15:30+00:00",
+            result_summary={"ok": True},
+            error_code=None,
+            error_message=None,
+        )
+
+    monkeypatch.setattr(routes.persistence, "get_task_log", fake_get_task_log)
+
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/tasks/01HXTESTTASK000000000000", headers=admin_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "completed"
+        assert body["result"] == {"ok": True}

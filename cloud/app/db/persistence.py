@@ -122,6 +122,14 @@ class PersistenceLayer:
                     setattr(row, key, value)
             await session.commit()
 
+    async def get_task_log(self, request_id: str) -> TaskLog | None:
+        """Fetch a persisted task log entry by request_id."""
+        async with db_engine.session() as session:
+            result = await session.execute(
+                select(TaskLog).where(TaskLog.request_id == request_id)
+            )
+            return result.scalar_one_or_none()
+
     async def query_holdings(
         self,
         device_id: str | None = None,

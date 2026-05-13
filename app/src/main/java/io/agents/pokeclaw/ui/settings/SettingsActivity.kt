@@ -80,6 +80,10 @@ class SettingsActivity : BaseActivity() {
         }
     }
 
+    private val cloudBridgeConfigLauncher = CloudBridgeConfigActivity.registerLauncher(this) { saved ->
+        if (saved) viewModel.refresh()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -382,6 +386,13 @@ class SettingsActivity : BaseActivity() {
             setTrailingText(if (KVUtils.isExternalAutomationEnabled()) "Enabled" else "Disabled")
         }
 
+        menuItems[SettingsViewModel.MenuAction.CLOUD_BRIDGE.name] = remoteGroup.addMenuItem(
+            leadingIcon = android.R.drawable.ic_menu_upload,
+            title = "Cloud Bridge",
+            onClick = { viewModel.onMenuItemClick(SettingsViewModel.MenuAction.CLOUD_BRIDGE) },
+            showDivider = true
+        )
+
         remoteGroup.addMenuItem(
             leadingIcon = android.R.drawable.ic_menu_call,
             title = "WhatsApp",
@@ -659,6 +670,9 @@ class SettingsActivity : BaseActivity() {
                             }
                             SettingsViewModel.MenuAction.LLM_CONFIG -> {
                                 llmConfigLauncher.launch(Intent(this@SettingsActivity, LlmConfigActivity::class.java))
+                            }
+                            SettingsViewModel.MenuAction.CLOUD_BRIDGE -> {
+                                cloudBridgeConfigLauncher.launch(Unit)
                             }
                             null -> {}
                             else -> {}

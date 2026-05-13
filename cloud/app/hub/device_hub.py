@@ -1,8 +1,6 @@
 """DeviceHub: manages WebSocket connections and in-memory device registry."""
 
 import asyncio
-import json
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -61,12 +59,23 @@ class DeviceHub:
             capabilities=capabilities,
         )
 
-    async def unregister(self, device_id: str) -> None:
-        """Remove a device from the registry."""
+    async def unregister(self, device_id: str, ws: WebSocket | None = None) -> None:
+        """Remove a device from the registry.
+
+        When a duplicate device_id reconnects, the old connection is closed after
+        the new one has already been registered. The old endpoint's finally block
+        must not delete the fresh connection, so callers can pass the WebSocket
+        instance they are unregistering as an ownership check.
+        """
         async with self._lock:
-            if device_id in self._devices:
-                del self._devices[device_id]
-                logger.info("device_unregistered", device_id=device_id)
+            entry = self._devices.get(device_id)
+            if entry is None:
+                return
+            if ws is not None and entry.ws is not ws:
+                logger.info("device_unregister_skipped_replaced", device_id=device_id)
+                return
+            del self._devices[device_id]
+            logger.info("device_unregistered", device_id=device_id)
 
     def get(self, device_id: str) -> DeviceEntry | None:
         """Look up a device by ID."""

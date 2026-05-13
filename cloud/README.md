@@ -20,10 +20,18 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env           # then fill in OB + tokens
-python -m app.main              # or: uvicorn app.main:app --host 0.0.0.0 --port 8080
+python -m app                   # or: uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
 Then point your phone's bridge at `wss://<this-host>/ws/device` with the device token from `.env`.
+
+## Tests
+
+```bash
+cd cloud
+pip install -r requirements-dev.txt
+pytest -q
+```
 
 ## Issuing the first task
 

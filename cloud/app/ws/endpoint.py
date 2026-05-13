@@ -13,13 +13,6 @@ from app.schemas.frames import (
     HelloPayload,
     HeartbeatPayload,
 )
-from app.schemas.frames_result import (
-    TaskAcceptedPayload,
-    TaskErrorPayload,
-    TaskProgressPayload,
-    TaskResultPayload,
-)
-
 logger = structlog.get_logger()
 router = APIRouter()
 
@@ -100,7 +93,7 @@ async def ws_device(
         logger.error("ws_error", device_id=device_id, error=str(e))
     finally:
         if device_id:
-            await device_hub.unregister(device_id)
+            await device_hub.unregister(device_id, websocket)
 
 
 async def _handle_frame(device_id: str, frame: Frame, ws: WebSocket) -> None:
