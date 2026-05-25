@@ -36,7 +36,12 @@ class AppCapabilityProviderAdapter(
         val installedTargetApps = mutableMapOf<String, Boolean>()
         val thsInstalled = isAppInstalled(context, THS_PACKAGE)
         for (kind in staticSupportedKinds) {
-            installedTargetApps[kind] = thsInstalled
+            installedTargetApps[kind] = when (kind) {
+                CloudBridgeCapabilities.THS_SYNC_HOLDINGS -> thsInstalled
+                CloudBridgeCapabilities.ANDROID_OPEN_URL,
+                CloudBridgeCapabilities.AGENT_RUN_TASK -> true
+                else -> true
+            }
         }
 
         return CapabilitySnapshot(

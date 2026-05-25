@@ -4,10 +4,10 @@
 package io.agents.pokeclaw.cloudbridge
 
 import android.content.Context
-import android.os.Build
 import io.agents.pokeclaw.ClawApplication
 import io.agents.pokeclaw.bridge.CloudBridgeClient
 import io.agents.pokeclaw.bridge.connection.NetworkMonitor
+import io.agents.pokeclaw.service.ForegroundService
 import io.agents.pokeclaw.utils.XLog
 
 /**
@@ -33,7 +33,7 @@ object CloudBridgeHolder {
     fun init(context: Context, orchestrator: io.agents.pokeclaw.TaskOrchestrator) {
         val configSource = KVUtilsConfigSource()
         val logger = XLogBridgeLogger()
-        val supportedKinds = listOf("ths.sync_holdings")
+        val supportedKinds = CloudBridgeCapabilities.SUPPORTED_KINDS
         val capabilityProvider = AppCapabilityProviderAdapter(context, supportedKinds)
         val resultSink = DefaultCloudTaskResultSink()
         val taskExecutor = TaskOrchestratorExecutorAdapter(
@@ -46,11 +46,15 @@ object CloudBridgeHolder {
             capabilityProvider = capabilityProvider,
             taskExecutor = taskExecutor,
             logger = logger,
-            deviceId = Build.SERIAL ?: Build.DEVICE,
+            deviceId = CloudBridgeDeviceId.get(context),
             appVersion = getAppVersion(context),
             filesDir = context.filesDir,
         )
         XLog.i(TAG, "CloudBridgeClient assembled")
+        if (ForegroundService.isRunning()) {
+            runCatching { client?.start() }
+                .onFailure { XLog.w(TAG, "CloudBridge start after init failed", it) }
+        }
     }
 
     private fun getAppVersion(context: Context): String {

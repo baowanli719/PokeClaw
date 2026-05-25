@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import io.agents.pokeclaw.AppCapabilityCoordinator
 import io.agents.pokeclaw.R
 import io.agents.pokeclaw.ServiceBindingState
+import io.agents.pokeclaw.cloudbridge.KVUtilsConfigSource
 import io.agents.pokeclaw.utils.XLog
 
 /**
@@ -35,11 +36,14 @@ class ForegroundService : Service() {
         private const val DEFAULT_TASK_TEXT = "Running task..."
         private const val DEFAULT_MONITOR_TITLE = "PokeClaw · Monitoring"
         private const val DEGRADED_MONITOR_TITLE = "PokeClaw · Monitoring paused"
+        private const val DEFAULT_BRIDGE_TITLE = "PokeClaw · Cloud Bridge"
+        private const val DEFAULT_BRIDGE_TEXT = "Connected to Cloud Bridge"
 
         private enum class ForegroundMode {
             IDLE,
             TASK,
             MONITOR,
+            BRIDGE,
         }
 
         @Volatile
@@ -113,11 +117,21 @@ class ForegroundService : Service() {
             val manager = AutoReplyManager.getInstance()
             return if (manager.isEnabled && manager.monitoredContacts.isNotEmpty()) {
                 showMonitorStatus(context)
+            } else if (isCloudBridgeConfigured()) {
+                showCloudBridgeStatus(context)
             } else {
                 _mode = ForegroundMode.IDLE
                 stop(context)
                 false
             }
+        }
+
+        fun showCloudBridgeStatus(context: Context): Boolean {
+            if (!isCloudBridgeConfigured()) {
+                return syncToBackgroundState(context)
+            }
+            _mode = ForegroundMode.BRIDGE
+            return showNotification(context, DEFAULT_BRIDGE_TITLE, DEFAULT_BRIDGE_TEXT)
         }
 
         private fun showNotification(context: Context, title: String, text: String): Boolean {
@@ -175,6 +189,11 @@ class ForegroundService : Service() {
             return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
+        }
+
+        private fun isCloudBridgeConfigured(): Boolean {
+            return KVUtilsConfigSource.getConfiguredUrl().isNotBlank() &&
+                KVUtilsConfigSource.getConfiguredDeviceToken().isNotBlank()
         }
 
         fun stop(context: Context) {

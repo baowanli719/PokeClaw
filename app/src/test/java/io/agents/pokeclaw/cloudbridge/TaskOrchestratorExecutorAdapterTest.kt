@@ -46,6 +46,38 @@ class TaskOrchestratorExecutorAdapterTest {
     }
 
     @Test
+    fun `android open url maps url param to open url task`() {
+        val callback = RecordingCallback()
+        val params = JsonObject().apply { addProperty("url", "https://www.baidu.com") }
+
+        adapter.execute("req_open_url", "android.open_url", params, null, callback)
+
+        assertThat(fakeOrchestrator.startedTasks).hasSize(1)
+        assertThat(fakeOrchestrator.startedTasks[0].taskText).isEqualTo("open https://www.baidu.com")
+    }
+
+    @Test
+    fun `android open url normalizes missing scheme`() {
+        val callback = RecordingCallback()
+        val params = JsonObject().apply { addProperty("url", "www.baidu.com") }
+
+        adapter.execute("req_open_url_no_scheme", "android.open_url", params, null, callback)
+
+        assertThat(fakeOrchestrator.startedTasks[0].taskText).isEqualTo("open https://www.baidu.com")
+    }
+
+    @Test
+    fun `agent run task maps task param directly`() {
+        val callback = RecordingCallback()
+        val params = JsonObject().apply { addProperty("task", "打开百度") }
+
+        adapter.execute("req_agent_task", "agent.run_task", params, null, callback)
+
+        assertThat(fakeOrchestrator.startedTasks).hasSize(1)
+        assertThat(fakeOrchestrator.startedTasks[0].taskText).isEqualTo("打开百度")
+    }
+
+    @Test
     fun `execute immediately calls onAccepted`() {
         val callback = RecordingCallback()
         adapter.execute("req_002", "ths.sync_holdings", JsonObject(), null, callback)
