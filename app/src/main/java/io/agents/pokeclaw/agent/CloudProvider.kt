@@ -58,6 +58,15 @@ enum class CloudProvider(
             CloudModel("gemini-2.5-pro", "Gemini 2.5 Pro", 1.25, 10.00, ModelTier.PRO, 1_000_000),
         )
     ),
+    DEEPSEEK(
+        displayName = "DeepSeek",
+        defaultBaseUrl = "https://api.deepseek.com",
+        models = listOf(
+            CloudModel("deepseek-v4-flash", "DeepSeek V4 Flash", 0.14, 0.28, ModelTier.FAST, 1_000_000, recommended = true),
+            CloudModel("deepseek-v4-pro", "DeepSeek V4 Pro", 0.435, 0.87, ModelTier.PRO, 1_000_000),
+            CloudModel("deepseek-chat", "DeepSeek Chat", 0.14, 0.28, ModelTier.SMART, 1_000_000),
+        )
+    ),
     CUSTOM(
         displayName = "Custom",
         defaultBaseUrl = "",

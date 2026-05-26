@@ -55,6 +55,35 @@ async def test_devices_empty(app, admin_headers):
 
 
 @pytest.mark.asyncio
+async def test_admin_console_served(app):
+    """GET /admin serves the browser console without embedding secrets."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/admin")
+        assert resp.status_code == 200
+        assert "PokeClaw Cloud Admin" in resp.text
+        assert "test_admin_token" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_admin_info_requires_token(app, admin_headers):
+    """GET /api/admin/info exposes safe metadata behind ADMIN_TOKEN."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        unauthorized = await client.get("/api/admin/info")
+        assert unauthorized.status_code == 401
+
+        resp = await client.get("/api/admin/info", headers=admin_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["admin_token_env"] == "ADMIN_TOKEN"
+        assert body["admin_token_masked"] == "***oken"
+        assert body["device_tokens_count"] == 1
+        assert any(k["kind"] == "agent.run_task" for k in body["task_kinds"])
+        assert body["websocket_url"] == "ws://test/ws/device"
+
+
+@pytest.mark.asyncio
 async def test_auth_rejection(app):
     """REST endpoints reject requests without valid admin token."""
     transport = ASGITransport(app=app)
@@ -131,3 +160,41 @@ async def test_get_task_falls_back_to_persisted_log(app, admin_headers, monkeypa
         body = resp.json()
         assert body["status"] == "completed"
         assert body["result"] == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_uses_persisted_logs(app, admin_headers, monkeypatch):
+    """GET /api/tasks lists recent task logs for the admin console."""
+    from app.api import routes
+
+    async def fake_query_task_logs(device_id=None, kind=None, limit=20):
+        assert device_id == "phone-01"
+        assert kind == "agent.run_task"
+        assert limit == 5
+        return [
+            SimpleNamespace(
+                request_id="01HXTESTTASK000000000001",
+                device_id="phone-01",
+                kind="agent.run_task",
+                status="completed",
+                dispatched_at="2026-05-06T10:15:22+00:00",
+                accepted_at="2026-05-06T10:15:23+00:00",
+                completed_at="2026-05-06T10:15:30+00:00",
+                result_summary={"summary": "Battery is 84%"},
+                error_code=None,
+                error_message=None,
+            )
+        ]
+
+    monkeypatch.setattr(routes.persistence, "query_task_logs", fake_query_task_logs)
+
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get(
+            "/api/tasks?device_id=phone-01&kind=agent.run_task&limit=5",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["request_id"] == "01HXTESTTASK000000000001"
+        assert body[0]["result"] == {"summary": "Battery is 84%"}

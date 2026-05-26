@@ -12,13 +12,16 @@ import java.util.concurrent.TimeUnit;
 import dev.langchain4j.http.client.HttpClient;
 import dev.langchain4j.http.client.HttpClientBuilder;
 
+import org.json.JSONObject;
+
 import okhttp3.OkHttpClient;
-import okhttp3.logging.HttpLoggingInterceptor;
 import okhttp3.Interceptor;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import okhttp3.MediaType;
+import okio.Buffer;
 
 /**
  * Adapts OkHttp's builder to LangChain4j's HttpClientBuilder SPI.
@@ -79,6 +82,11 @@ public class OkHttpClientBuilderAdapter implements HttpClientBuilder {
     public HttpClient build() {
         final boolean logReqBody = this.logRequestBody;
 
+        Interceptor deepSeekThinkingInterceptor = chain -> {
+            Request request = withDeepSeekThinkingDisabled(chain.request());
+            return chain.proceed(request);
+        };
+
         // Custom interceptor: always print response; request body controlled by logRequestBody flag
         Interceptor llmLoggingInterceptor = chain -> {
             Request request = chain.request();
@@ -129,6 +137,7 @@ public class OkHttpClientBuilderAdapter implements HttpClientBuilder {
                 .connectTimeout(connectTimeout.toMillis(), TimeUnit.MILLISECONDS)
                 .readTimeout(readTimeout.toMillis(), TimeUnit.MILLISECONDS)
                 .writeTimeout(readTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                .addInterceptor(deepSeekThinkingInterceptor)
                 .addInterceptor(llmLoggingInterceptor);
 
         if (fileLoggingEnabled && cacheDir != null) {
@@ -137,5 +146,35 @@ public class OkHttpClientBuilderAdapter implements HttpClientBuilder {
 
         OkHttpClient okHttpClient = builder.build();
         return new OkHttpClientAdapter(okHttpClient);
+    }
+
+    private Request withDeepSeekThinkingDisabled(Request request) {
+        if (request.body() == null || !request.url().host().equalsIgnoreCase("api.deepseek.com")) {
+            return request;
+        }
+
+        try {
+            Buffer buffer = new Buffer();
+            request.body().writeTo(buffer);
+            String body = buffer.readUtf8();
+            JSONObject json = new JSONObject(body);
+            String model = json.optString("model", "");
+            if (!model.startsWith("deepseek-v4-") || json.has("thinking")) {
+                return request;
+            }
+
+            JSONObject thinking = new JSONObject();
+            thinking.put("type", "disabled");
+            json.put("thinking", thinking);
+
+            MediaType contentType = request.body().contentType();
+            RequestBody newBody = RequestBody.create(json.toString(), contentType);
+            return request.newBuilder()
+                    .method(request.method(), newBody)
+                    .build();
+        } catch (Exception e) {
+            XLog.w(TAG, "Failed to apply DeepSeek thinking override: " + e.getMessage());
+            return request;
+        }
     }
 }

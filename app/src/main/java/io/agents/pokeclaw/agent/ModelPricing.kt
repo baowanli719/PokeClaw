@@ -40,8 +40,10 @@ object ModelPricing {
         // Open-source via OpenRouter/Groq
         "llama-3.3-70b-versatile" to Price(0.59, 0.79),
         "llama-4-maverick" to Price(0.50, 0.70),
-        "deepseek-chat" to Price(0.27, 1.10),
-        "deepseek-reasoner" to Price(0.55, 2.19),
+        "deepseek-v4-flash" to Price(0.14, 0.28),
+        "deepseek-v4-pro" to Price(0.435, 0.87),
+        "deepseek-chat" to Price(0.14, 0.28),
+        "deepseek-reasoner" to Price(0.14, 0.28),
         "qwen-2.5-72b" to Price(0.29, 0.39),
     )
 

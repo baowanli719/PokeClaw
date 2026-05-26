@@ -52,9 +52,11 @@ def create_app() -> FastAPI:
     )
 
     from app.api.routes import router as api_router
+    from app.admin_ui import router as admin_router
     from app.ws.endpoint import router as ws_router
 
     app.include_router(ws_router)
+    app.include_router(admin_router)
     app.include_router(api_router)
 
     return app

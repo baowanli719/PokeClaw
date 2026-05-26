@@ -25,6 +25,20 @@ python -m app                   # or: uvicorn app.main:app --host 0.0.0.0 --port
 
 Then point your phone's bridge at `wss://<this-host>/ws/device` with the device token from `.env`.
 
+### Browser admin console
+
+Open `http://<this-host>:8080/admin` to use the built-in admin console.
+
+The page lets you:
+
+- enter `ADMIN_TOKEN` locally in the browser;
+- select an online device from `/api/devices`;
+- dispatch `agent.run_task`, `android.open_url`, or `ths.sync_holdings`;
+- watch task status/results from `/api/tasks/{request_id}`;
+- view curl examples, WebSocket connection format, and masked token/config metadata.
+
+For safety, the server never renders the full `ADMIN_TOKEN` or `DEVICE_TOKENS` into the page. Paste the admin token into the page, or call the APIs with `Authorization: Bearer <ADMIN_TOKEN>`.
+
 ## Tests
 
 ```bash

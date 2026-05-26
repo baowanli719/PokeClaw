@@ -130,6 +130,23 @@ class PersistenceLayer:
             )
             return result.scalar_one_or_none()
 
+    async def query_task_logs(
+        self,
+        device_id: str | None = None,
+        kind: str | None = None,
+        limit: int = 50,
+    ) -> list[TaskLog]:
+        """Query recent task logs with optional filters."""
+        async with db_engine.session() as session:
+            stmt = select(TaskLog).order_by(TaskLog.created_at.desc())
+            if device_id:
+                stmt = stmt.where(TaskLog.device_id == device_id)
+            if kind:
+                stmt = stmt.where(TaskLog.kind == kind)
+            stmt = stmt.limit(limit)
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
     async def query_holdings(
         self,
         device_id: str | None = None,

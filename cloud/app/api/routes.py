@@ -38,6 +38,35 @@ async def submit_task(body: TaskSubmitRequest):
 
 
 @router.get(
+    "/api/tasks",
+    response_model=list[TaskStatusResponse],
+    dependencies=[Depends(require_admin)],
+)
+async def list_tasks(
+    device_id: str | None = Query(default=None),
+    kind: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    """List recent persisted task logs."""
+    rows = await persistence.query_task_logs(device_id=device_id, kind=kind, limit=limit)
+    return [
+        TaskStatusResponse(
+            request_id=r.request_id,
+            device_id=r.device_id,
+            kind=r.kind,
+            status=r.status,
+            dispatched_at=r.dispatched_at,
+            accepted_at=r.accepted_at,
+            completed_at=r.completed_at,
+            result=r.result_summary,
+            error_code=r.error_code,
+            error_message=r.error_message,
+        )
+        for r in rows
+    ]
+
+
+@router.get(
     "/api/tasks/{request_id}",
     response_model=TaskStatusResponse,
     dependencies=[Depends(require_admin)],
