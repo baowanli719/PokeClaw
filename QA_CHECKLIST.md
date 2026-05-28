@@ -1256,6 +1256,10 @@ Clean install of `PokeClaw_v0.7.1-debug_20260526_114024.apk` after fresh uninsta
 [2026-05-28] [GOTCHA]  CAPABILITY   AppCapabilityCoordinator stays in DEGRADED state after force-stop even though OS-level dumpsys shows Bound services.
                                     Workaround: Settings UI toggle off-then-on (programmatic `settings put secure enabled_accessibility_services` does NOT trigger onServiceConnected).
                                     Architecture finding: capability coordinator should recover from accidental task-kill without user toggling. Open BACKLOG P1.
+[2026-05-28] [PARTIAL] CAPABILITY-fix Process-young grace shipped: bindingState returns CONNECTING for 30s after process start regardless of stale lastHealthyAt.
+                                    Code-review PASS. Runtime QA blocked: Pixel 8 Pro `am force-stop` revokes secure setting `accessibility_enabled`, making it
+                                    impossible to reproduce the "process restarted but a11y still enabled at OS level" scenario on this device.
+                                    Need OEM-device telemetry (Xiaomi/Samsung) to confirm whether their task-killers preserve the secure setting.
 ```
 
 ### 2026-05-26 — v0.7.0 SIGNED RELEASE post-tag QA (Pixel 8 Pro, Android 16)

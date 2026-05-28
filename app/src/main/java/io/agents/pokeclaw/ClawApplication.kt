@@ -29,6 +29,7 @@ class ClawApplication : BaseApp() {
 
     override fun onCreate() {
         super.onCreate()
+        AppCapabilityCoordinator.markProcessStart()
         instance = this
         AppLogStore.init(this)
         XLog.setDEBUG(BuildConfig.DEBUG)
