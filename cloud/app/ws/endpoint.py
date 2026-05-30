@@ -7,6 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.auth import AuthService
 from app.hub.device_hub import device_hub
+from app.hub.screen_preview import screen_preview_hub
 from app.hub.task_dispatcher import task_dispatcher
 from app.schemas.frames import (
     Frame,
@@ -128,5 +129,44 @@ async def _handle_frame(device_id: str, frame: Frame, ws: WebSocket) -> None:
                 p.get("message", ""),
                 p.get("retryable", False),
             )
+        case "screen.frame":
+            await screen_preview_hub.handle_frame(device_id, frame.payload)
+        case "screen.preview.status":
+            await screen_preview_hub.handle_status(device_id, frame.payload)
         case _:
             logger.warning("ws_unknown_frame_type", device_id=device_id, type=frame.type)
+
+
+@router.websocket("/ws/admin/screen")
+async def ws_admin_screen(
+    websocket: WebSocket,
+    device_id: str = Query(default=""),
+    token: str = Query(default=""),
+):
+    """Admin WebSocket that relays live low-FPS preview frames for one device."""
+    auth_header = websocket.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        admin_token = auth_header[7:].strip()
+    else:
+        admin_token = token
+
+    auth = AuthService()
+    if not auth.validate_admin_token(admin_token):
+        await websocket.close(code=4403, reason="unauthorized")
+        return
+    if not device_id:
+        await websocket.close(code=4400, reason="device_id required")
+        return
+
+    await websocket.accept()
+    await screen_preview_hub.subscribe(device_id, websocket)
+    logger.info("screen_preview_admin_subscribed", device_id=device_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        logger.info("screen_preview_admin_disconnected", device_id=device_id)
+    except Exception as exc:
+        logger.warning("screen_preview_admin_error", device_id=device_id, error=str(exc))
+    finally:
+        await screen_preview_hub.unsubscribe(device_id, websocket)

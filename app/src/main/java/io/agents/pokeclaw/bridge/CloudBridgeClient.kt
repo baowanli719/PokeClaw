@@ -16,6 +16,7 @@ import io.agents.pokeclaw.bridge.protocol.Frame
 import io.agents.pokeclaw.bridge.protocol.HeartbeatPayload
 import io.agents.pokeclaw.bridge.protocol.HelloPayload
 import io.agents.pokeclaw.bridge.queue.OfflineOutbox
+import io.agents.pokeclaw.bridge.screen.ScreenPreviewStreamer
 import io.agents.pokeclaw.bridge.task.TaskBridge
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -108,6 +109,13 @@ class CloudBridgeClient(
         onPong = { id -> sendPong(id) },
     )
 
+    private val screenPreviewStreamer = ScreenPreviewStreamer(
+        dispatcher = dispatcher,
+        clock = clock,
+        logger = logger,
+        sendFrame = { frame -> connectionManager.sendFrame(frame) },
+    )
+
     // ═══════════════════════════════════════════════════════════════════════
     // 10.3 — ConnectionManager callback (defined before init to avoid order issues)
     // ═══════════════════════════════════════════════════════════════════════
@@ -125,6 +133,7 @@ class CloudBridgeClient(
             ) {
                 heartbeatScheduler.stop()
                 offlineOutbox.setAuthenticated(false)
+                screenPreviewStreamer.stop()
             }
 
             // 10.4 — When Connected (TCP+WS handshake done), assemble and send hello
@@ -156,6 +165,14 @@ class CloudBridgeClient(
                     logger.d(TAG, "Ping received: id=${frame.id}")
                     heartbeatScheduler.onPing(frame.id)
                 }
+                is Frame.ScreenPreviewStart -> {
+                    logger.i(TAG, "Screen preview start: session_id=${frame.payload.session_id}")
+                    screenPreviewStreamer.start(frame.payload)
+                }
+                is Frame.ScreenPreviewStop -> {
+                    logger.i(TAG, "Screen preview stop: session_id=${frame.payload.session_id}")
+                    screenPreviewStreamer.stop(frame.payload.session_id)
+                }
                 is Frame.Unknown -> {
                     logger.w(TAG, "Unknown frame type: ${frame.type} — discarding")
                 }
@@ -172,6 +189,7 @@ class CloudBridgeClient(
             logger.i(TAG, "Disconnected — scheduling reconnect via backoff")
             heartbeatScheduler.stop()
             offlineOutbox.setAuthenticated(false)
+            screenPreviewStreamer.stop()
         }
     }
 
@@ -235,6 +253,7 @@ class CloudBridgeClient(
                 }
 
                 heartbeatScheduler.stop()
+                screenPreviewStreamer.stop()
                 connectionManager.stop()
                 offlineOutbox.setAuthenticated(false)
                 _state.value = ConnectionState.Stopped(StopReason.USER_STOPPED)
@@ -258,6 +277,7 @@ class CloudBridgeClient(
                     logger.w(TAG, "New config missing or incomplete — closing connection")
                     if (currentConfig != null) {
                         heartbeatScheduler.stop()
+                        screenPreviewStreamer.stop()
                         connectionManager.stop()
                         offlineOutbox.setAuthenticated(false)
                         currentConfig = null
@@ -279,6 +299,7 @@ class CloudBridgeClient(
                 logger.i(TAG, "Config changed — reconnecting (token=${newConfig.deviceToken.masked()})")
                 currentConfig = newConfig
                 heartbeatScheduler.stop()
+                screenPreviewStreamer.stop()
                 offlineOutbox.setAuthenticated(false)
                 connectionManager.close(1000, "reconfigure")
                 connectionManager.connect(newConfig, deviceId, appVersion)

@@ -88,6 +88,21 @@ async def admin_info(request: Request):
                 "path": "/api/holdings",
                 "description": "Query persisted holdings snapshots.",
             },
+            {
+                "method": "POST",
+                "path": "/api/devices/{device_id}/screen-preview/start",
+                "description": "Start low-frame-rate screen preview for admin viewers.",
+            },
+            {
+                "method": "POST",
+                "path": "/api/devices/{device_id}/screen-preview/stop",
+                "description": "Stop screen preview.",
+            },
+            {
+                "method": "GET",
+                "path": "/downloads/PokeClaw_latest.apk",
+                "description": "Download the latest debug APK.",
+            },
         ],
     }
 
@@ -234,6 +249,27 @@ ADMIN_HTML = r"""<!doctype html>
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
     th { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .preview-box {
+      display: grid;
+      place-items: center;
+      min-height: 280px;
+      background: #05070d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .preview-box img {
+      display: block;
+      width: 100%;
+      max-height: 70vh;
+      object-fit: contain;
+      background: #05070d;
+    }
+    .preview-box .empty {
+      color: #9aacc6;
+      padding: 24px;
+      text-align: center;
+    }
     @media (max-width: 900px) {
       header { position: static; align-items: flex-start; flex-direction: column; }
       main { grid-template-columns: 1fr; padding: 12px; }
@@ -308,6 +344,34 @@ ADMIN_HTML = r"""<!doctype html>
       </section>
 
       <section>
+        <h2>手机屏幕预览</h2>
+        <div class="row">
+          <button id="startPreviewBtn">开始预览</button>
+          <button class="secondary" id="stopPreviewBtn">停止预览</button>
+          <span class="pill" id="previewState">stopped</span>
+          <span class="muted" id="previewMeta"></span>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <label style="width:120px;">
+            interval_ms
+            <input id="previewIntervalInput" type="number" min="500" max="5000" value="1000">
+          </label>
+          <label style="width:120px;">
+            jpeg_quality
+            <input id="previewQualityInput" type="number" min="20" max="80" value="45">
+          </label>
+          <label style="width:120px;">
+            max_width
+            <input id="previewWidthInput" type="number" min="240" max="1080" value="720">
+          </label>
+        </div>
+        <div class="preview-box" style="margin-top:12px;">
+          <img id="screenPreviewImg" alt="phone screen preview" style="display:none;">
+          <div class="empty" id="screenPreviewEmpty">预览未启动。</div>
+        </div>
+      </section>
+
+      <section>
         <h2>接口调用方法</h2>
         <div class="split">
           <div>
@@ -369,6 +433,15 @@ const els = {
   result: document.getElementById('resultOutput'),
   taskState: document.getElementById('taskState'),
   requestId: document.getElementById('requestIdText'),
+  startPreview: document.getElementById('startPreviewBtn'),
+  stopPreview: document.getElementById('stopPreviewBtn'),
+  previewState: document.getElementById('previewState'),
+  previewMeta: document.getElementById('previewMeta'),
+  previewInterval: document.getElementById('previewIntervalInput'),
+  previewQuality: document.getElementById('previewQualityInput'),
+  previewWidth: document.getElementById('previewWidthInput'),
+  previewImg: document.getElementById('screenPreviewImg'),
+  previewEmpty: document.getElementById('screenPreviewEmpty'),
   adminInfo: document.getElementById('adminInfo'),
   curlDevices: document.getElementById('curlDevices'),
   curlSubmit: document.getElementById('curlSubmit'),
@@ -381,6 +454,9 @@ let adminInfo = null;
 let devices = [];
 let pollTimer = null;
 let activeRequestId = '';
+let previewSocket = null;
+let previewSessionId = '';
+let previewDeviceId = '';
 
 function token() { return els.token.value.trim(); }
 function baseUrl() { return location.origin; }
@@ -408,6 +484,10 @@ function pretty(value) {
 function setStatus(text, cls) {
   els.taskState.textContent = text;
   els.taskState.className = `pill ${cls || ''}`;
+}
+function setPreviewStatus(text, cls) {
+  els.previewState.textContent = text;
+  els.previewState.className = `pill ${cls || ''}`;
 }
 function currentKindMeta() {
   if (!adminInfo) return null;
@@ -447,6 +527,13 @@ function updateSnippets() {
   els.curlStatus.textContent = `curl -H 'Authorization: Bearer ${t}' \\\n  '${host}/api/tasks/${reqId}'`;
   const wsUrl = adminInfo ? adminInfo.websocket_url : host.replace('http', 'ws') + '/ws/device';
   els.curlWs.textContent = `${wsUrl}?device_id=<device_id>&app_version=<app_version>&token=<DEVICE_TOKEN>`;
+}
+function previewBody() {
+  return {
+    interval_ms: Number(els.previewInterval.value || 1000),
+    jpeg_quality: Number(els.previewQuality.value || 45),
+    max_width: Number(els.previewWidth.value || 720),
+  };
 }
 function renderKinds() {
   els.kindSelect.innerHTML = '';
@@ -533,6 +620,63 @@ async function submitTask() {
   await watchTask(resp.request_id);
   await loadRecentTasks().catch(() => {});
 }
+function closePreviewSocket() {
+  if (previewSocket) {
+    previewSocket.close();
+    previewSocket = null;
+  }
+}
+function openPreviewSocket(deviceId) {
+  closePreviewSocket();
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${location.host}/ws/admin/screen?device_id=${encodeURIComponent(deviceId)}&token=${encodeURIComponent(token())}`;
+  previewSocket = new WebSocket(wsUrl);
+  previewSocket.onopen = () => setPreviewStatus('waiting frame', 'status-warn');
+  previewSocket.onmessage = event => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'screen.preview.status') {
+      const p = msg.payload || {};
+      setPreviewStatus(p.status || 'status', p.status === 'error' ? 'status-bad' : 'status-warn');
+      els.previewMeta.textContent = p.message || p.received_at || '';
+      return;
+    }
+    if (msg.type !== 'screen.frame') return;
+    const p = msg.payload || {};
+    els.previewImg.src = `data:image/${p.image_format || 'jpeg'};base64,${p.image_base64}`;
+    els.previewImg.style.display = 'block';
+    els.previewEmpty.style.display = 'none';
+    setPreviewStatus('watching', 'status-ok');
+    els.previewMeta.textContent = `${p.width}x${p.height} · frame ${p.seq} · ${p.received_at || ''}`;
+  };
+  previewSocket.onerror = () => setPreviewStatus('socket error', 'status-bad');
+  previewSocket.onclose = () => {
+    if (previewSessionId) setPreviewStatus('disconnected', 'status-warn');
+  };
+}
+async function startPreview() {
+  const deviceId = selectedDeviceId();
+  if (!deviceId) throw new Error('没有可选择的在线设备');
+  setPreviewStatus('starting', 'status-warn');
+  els.previewMeta.textContent = '';
+  const resp = await api(`/api/devices/${encodeURIComponent(deviceId)}/screen-preview/start`, {
+    method: 'POST',
+    body: JSON.stringify(previewBody()),
+  });
+  previewSessionId = resp.session_id;
+  previewDeviceId = deviceId;
+  openPreviewSocket(deviceId);
+}
+async function stopPreview() {
+  const deviceId = previewDeviceId || selectedDeviceId();
+  closePreviewSocket();
+  previewSessionId = '';
+  previewDeviceId = '';
+  if (deviceId) {
+    await api(`/api/devices/${encodeURIComponent(deviceId)}/screen-preview/stop`, {method: 'POST'});
+  }
+  setPreviewStatus('stopped', '');
+  els.previewMeta.textContent = '';
+}
 async function watchTask(requestId) {
   activeRequestId = requestId;
   els.requestId.textContent = requestId;
@@ -581,6 +725,14 @@ els.clearToken.addEventListener('click', () => {
 });
 els.refreshDevices.addEventListener('click', () => loadDevices().catch(err => alert(err.message)));
 els.recent.addEventListener('click', () => loadRecentTasks().catch(err => alert(err.message)));
+els.startPreview.addEventListener('click', () => startPreview().catch(err => {
+  setPreviewStatus('start failed', 'status-bad');
+  els.previewMeta.textContent = err.message;
+}));
+els.stopPreview.addEventListener('click', () => stopPreview().catch(err => {
+  setPreviewStatus('stop failed', 'status-bad');
+  els.previewMeta.textContent = err.message;
+}));
 els.submit.addEventListener('click', () => submitTask().catch(err => {
   setStatus('submit failed', 'status-bad');
   els.result.textContent = err.message;
@@ -588,7 +740,12 @@ els.submit.addEventListener('click', () => submitTask().catch(err => {
 els.kindSelect.addEventListener('change', syncParamsFromInstruction);
 els.instruction.addEventListener('input', syncParamsFromInstruction);
 els.params.addEventListener('input', updateSnippets);
-els.deviceSelect.addEventListener('change', updateSnippets);
+els.deviceSelect.addEventListener('change', () => {
+  updateSnippets();
+  if (previewDeviceId && previewDeviceId !== selectedDeviceId()) {
+    stopPreview().catch(() => {});
+  }
+});
 els.timeout.addEventListener('input', updateSnippets);
 els.token.addEventListener('input', updateSnippets);
 

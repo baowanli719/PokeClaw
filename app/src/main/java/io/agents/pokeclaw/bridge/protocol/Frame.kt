@@ -50,6 +50,18 @@ sealed class Frame {
         override val ts: Long,
     ) : Frame() { override val type: String = "pong" }
 
+    data class ScreenFrame(
+        override val id: String?,
+        override val ts: Long,
+        val payload: ScreenFramePayload,
+    ) : Frame() { override val type: String = "screen.frame" }
+
+    data class ScreenPreviewStatus(
+        override val id: String?,
+        override val ts: Long,
+        val payload: ScreenPreviewStatusPayload,
+    ) : Frame() { override val type: String = "screen.preview.status" }
+
     // ---------- Inbound (cloud → device) ----------
 
     data class HelloAck(
@@ -74,6 +86,18 @@ sealed class Frame {
         override val id: String?,
         override val ts: Long,
     ) : Frame() { override val type: String = "ping" }
+
+    data class ScreenPreviewStart(
+        override val id: String?,
+        override val ts: Long,
+        val payload: ScreenPreviewStartPayload,
+    ) : Frame() { override val type: String = "screen.preview.start" }
+
+    data class ScreenPreviewStop(
+        override val id: String?,
+        override val ts: Long,
+        val payload: ScreenPreviewStopPayload,
+    ) : Frame() { override val type: String = "screen.preview.stop" }
 
     // ---------- Fallbacks (never serialized back to the wire) ----------
 

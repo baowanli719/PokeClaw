@@ -55,6 +55,32 @@ async def test_devices_empty(app, admin_headers):
 
 
 @pytest.mark.asyncio
+async def test_screen_preview_start_device_offline(app, admin_headers):
+    """Starting preview for an offline device returns 400."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/devices/nonexistent/screen-preview/start",
+            json={"interval_ms": 1000, "jpeg_quality": 45, "max_width": 720},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 400
+        assert "not connected" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_screen_preview_latest_missing(app, admin_headers):
+    """Latest preview returns 404 before any frame arrives."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get(
+            "/api/devices/phone-01/screen-preview/latest",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_admin_console_served(app):
     """GET /admin serves the browser console without embedding secrets."""
     transport = ASGITransport(app=app)

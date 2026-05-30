@@ -46,3 +46,14 @@ class TaskProgressPayload(BaseModel):
     request_id: str
     step: str | None = None
     ratio: float | None = None
+
+
+class ScreenFramePayload(BaseModel):
+    """Device → cloud low-frame-rate screen preview frame."""
+    session_id: str
+    seq: int
+    captured_at: int
+    width: int
+    height: int
+    image_format: str = "jpeg"
+    image_base64: str

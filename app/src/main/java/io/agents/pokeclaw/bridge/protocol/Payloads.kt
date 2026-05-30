@@ -52,3 +52,30 @@ data class TaskErrorPayload(
 )
 
 data class TaskCancelPayload(val request_id: String)
+
+data class ScreenPreviewStartPayload(
+    val session_id: String,
+    val interval_ms: Long = 1000L,
+    val jpeg_quality: Int = 45,
+    val max_width: Int = 720,
+)
+
+data class ScreenPreviewStopPayload(
+    val session_id: String? = null,
+)
+
+data class ScreenFramePayload(
+    val session_id: String,
+    val seq: Long,
+    val captured_at: Long,
+    val width: Int,
+    val height: Int,
+    val image_format: String = "jpeg",
+    val image_base64: String,
+)
+
+data class ScreenPreviewStatusPayload(
+    val session_id: String,
+    val status: String,
+    val message: String? = null,
+)

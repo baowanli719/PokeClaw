@@ -8,7 +8,7 @@ from app.schemas.holdings import (
     PositionItem,
     ThsSyncHoldingsResult,
 )
-from app.schemas.frames import Frame, HelloPayload
+from app.schemas.frames import Frame, HelloPayload, ScreenFramePayload
 from app.schemas.api import TaskSubmitRequest
 
 
@@ -77,6 +77,18 @@ class TestFrame:
         f = Frame(type="task.dispatch", id="f_1", ts=123, payload={"key": "val"})
         assert f.id == "f_1"
         assert f.payload["key"] == "val"
+
+    def test_screen_frame_payload(self):
+        payload = ScreenFramePayload(
+            session_id="s1",
+            seq=1,
+            captured_at=1712345678901,
+            width=360,
+            height=800,
+            image_base64="abc123",
+        )
+        assert payload.image_format == "jpeg"
+        assert payload.image_base64 == "abc123"
 
 
 class TestTaskSubmitRequest:

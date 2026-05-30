@@ -48,10 +48,14 @@ object FrameCodec {
             is Frame.TaskResult -> gson.toJsonTree(frame.payload).asJsonObject
             is Frame.TaskError -> gson.toJsonTree(frame.payload).asJsonObject
             is Frame.Pong -> JsonObject() // no payload
+            is Frame.ScreenFrame -> gson.toJsonTree(frame.payload).asJsonObject
+            is Frame.ScreenPreviewStatus -> gson.toJsonTree(frame.payload).asJsonObject
             is Frame.HelloAck -> gson.toJsonTree(frame.payload).asJsonObject
             is Frame.TaskDispatch -> gson.toJsonTree(frame.payload).asJsonObject
             is Frame.TaskCancel -> gson.toJsonTree(frame.payload).asJsonObject
             is Frame.Ping -> JsonObject() // no payload
+            is Frame.ScreenPreviewStart -> gson.toJsonTree(frame.payload).asJsonObject
+            is Frame.ScreenPreviewStop -> gson.toJsonTree(frame.payload).asJsonObject
             is Frame.Unknown -> frame.payload
             is Frame.ParseError -> JsonObject()
         }
@@ -128,6 +132,16 @@ object FrameCodec {
                 payload = parsePayload(payload, TaskErrorPayload::class.java, text),
             )
             "pong" -> Frame.Pong(id = id, ts = ts)
+            "screen.frame" -> Frame.ScreenFrame(
+                id = id,
+                ts = ts,
+                payload = parsePayload(payload, ScreenFramePayload::class.java, text),
+            )
+            "screen.preview.status" -> Frame.ScreenPreviewStatus(
+                id = id,
+                ts = ts,
+                payload = parsePayload(payload, ScreenPreviewStatusPayload::class.java, text),
+            )
             "hello.ack" -> Frame.HelloAck(
                 id = id,
                 ts = ts,
@@ -144,6 +158,16 @@ object FrameCodec {
                 payload = parsePayload(payload, TaskCancelPayload::class.java, text),
             )
             "ping" -> Frame.Ping(id = id, ts = ts)
+            "screen.preview.start" -> Frame.ScreenPreviewStart(
+                id = id,
+                ts = ts,
+                payload = parsePayload(payload, ScreenPreviewStartPayload::class.java, text),
+            )
+            "screen.preview.stop" -> Frame.ScreenPreviewStop(
+                id = id,
+                ts = ts,
+                payload = parsePayload(payload, ScreenPreviewStopPayload::class.java, text),
+            )
             else -> Frame.Unknown(type = type, id = id, ts = ts, payload = payload)
         }
     }
@@ -179,6 +203,14 @@ object FrameCodec {
             ) as T
             is TaskDispatchPayload -> payload.copy(
                 params = payload.params ?: JsonObject(),
+            ) as T
+            is ScreenPreviewStartPayload -> payload.copy(
+                interval_ms = if (payload.interval_ms <= 0L) 1000L else payload.interval_ms,
+                jpeg_quality = if (payload.jpeg_quality <= 0) 45 else payload.jpeg_quality,
+                max_width = if (payload.max_width <= 0) 720 else payload.max_width,
+            ) as T
+            is ScreenFramePayload -> payload.copy(
+                image_format = payload.image_format ?: "jpeg",
             ) as T
             else -> payload
         }
@@ -219,6 +251,18 @@ object FrameCodec {
             }
             is TaskCancelPayload -> {
                 requireField(payload.request_id, "request_id", rawText)
+            }
+            is ScreenPreviewStartPayload -> {
+                requireField(payload.session_id, "session_id", rawText)
+            }
+            is ScreenFramePayload -> {
+                requireField(payload.session_id, "session_id", rawText)
+                requireField(payload.image_format, "image_format", rawText)
+                requireField(payload.image_base64, "image_base64", rawText)
+            }
+            is ScreenPreviewStatusPayload -> {
+                requireField(payload.session_id, "session_id", rawText)
+                requireField(payload.status, "status", rawText)
             }
         }
     }

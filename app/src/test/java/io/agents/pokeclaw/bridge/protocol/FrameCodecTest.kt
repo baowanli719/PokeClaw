@@ -165,6 +165,32 @@ class FrameCodecTest {
         assertThat(obj.getAsJsonObject("payload")).isNotNull
     }
 
+    @Test
+    fun `encode ScreenFrame produces compact preview payload`() {
+        val frame = Frame.ScreenFrame(
+            id = "sf-1",
+            ts = 8000L,
+            payload = ScreenFramePayload(
+                session_id = "preview-1",
+                seq = 3L,
+                captured_at = 7999L,
+                width = 360,
+                height = 800,
+                image_format = "jpeg",
+                image_base64 = "abc123",
+            ),
+        )
+        val json = FrameCodec.encode(frame)
+        val obj = gson.fromJson(json, JsonObject::class.java)
+
+        assertThat(obj.get("type").asString).isEqualTo("screen.frame")
+        val payload = obj.getAsJsonObject("payload")
+        assertThat(payload.get("session_id").asString).isEqualTo("preview-1")
+        assertThat(payload.get("seq").asLong).isEqualTo(3L)
+        assertThat(payload.get("image_format").asString).isEqualTo("jpeg")
+        assertThat(payload.get("image_base64").asString).isEqualTo("abc123")
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // Inbound Frame deserialization examples
     // ═══════════════════════════════════════════════════════════════════════
@@ -215,6 +241,29 @@ class FrameCodecTest {
         assertThat(frame).isInstanceOf(Frame.TaskCancel::class.java)
         val cancel = frame as Frame.TaskCancel
         assertThat(cancel.payload.request_id).isEqualTo("r1")
+    }
+
+    @Test
+    fun `decode screen_preview_start returns Frame_ScreenPreviewStart`() {
+        val json = """{"type":"screen.preview.start","id":"p1","ts":400,"payload":{"session_id":"s1","interval_ms":1000,"jpeg_quality":45,"max_width":720}}"""
+        val frame = FrameCodec.decode(json)
+
+        assertThat(frame).isInstanceOf(Frame.ScreenPreviewStart::class.java)
+        val start = frame as Frame.ScreenPreviewStart
+        assertThat(start.payload.session_id).isEqualTo("s1")
+        assertThat(start.payload.interval_ms).isEqualTo(1000L)
+        assertThat(start.payload.jpeg_quality).isEqualTo(45)
+        assertThat(start.payload.max_width).isEqualTo(720)
+    }
+
+    @Test
+    fun `decode screen_preview_stop accepts empty payload`() {
+        val json = """{"type":"screen.preview.stop","ts":401,"payload":{}}"""
+        val frame = FrameCodec.decode(json)
+
+        assertThat(frame).isInstanceOf(Frame.ScreenPreviewStop::class.java)
+        val stop = frame as Frame.ScreenPreviewStop
+        assertThat(stop.payload.session_id).isNull()
     }
 
     @Test

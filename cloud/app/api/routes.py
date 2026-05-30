@@ -1,12 +1,20 @@
 """REST control plane endpoints."""
 
+import time
+import uuid
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from app.auth import require_admin
 from app.db.engine import db_engine
 from app.db.persistence import persistence
 from app.hub.device_hub import device_hub
+from app.hub.screen_preview import screen_preview_hub
 from app.hub.task_dispatcher import task_dispatcher
+from app.schemas.frames import Frame
 from app.schemas.api import (
     DeviceInfo,
     HoldingsQueryResponse,
@@ -16,6 +24,14 @@ from app.schemas.api import (
 )
 
 router = APIRouter()
+APK_DOWNLOAD_PATH = Path(__file__).resolve().parents[2] / "downloads" / "PokeClaw_latest.apk"
+
+
+class ScreenPreviewStartRequest(BaseModel):
+    """Controls the phone-side preview encoder settings."""
+    interval_ms: int = Field(default=1000, ge=500, le=5000)
+    jpeg_quality: int = Field(default=45, ge=20, le=80)
+    max_width: int = Field(default=720, ge=240, le=1080)
 
 
 @router.post(
@@ -125,6 +141,83 @@ async def list_devices():
         )
         for e in entries
     ]
+
+
+@router.post(
+    "/api/devices/{device_id}/screen-preview/start",
+    dependencies=[Depends(require_admin)],
+)
+async def start_screen_preview(device_id: str, body: ScreenPreviewStartRequest):
+    """Ask a connected phone to start low-frame-rate JPEG screen preview."""
+    device = device_hub.get(device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Device {device_id} not connected")
+    if "screen.preview" not in device.capabilities:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Device {device_id} does not advertise screen.preview; install the latest APK",
+        )
+
+    session_id = uuid.uuid4().hex
+    payload = {
+        "session_id": session_id,
+        "interval_ms": body.interval_ms,
+        "jpeg_quality": body.jpeg_quality,
+        "max_width": body.max_width,
+    }
+    frame = Frame(
+        type="screen.preview.start",
+        id=f"screen-preview-{session_id}",
+        ts=int(time.time() * 1000),
+        payload=payload,
+    )
+    await device_hub.send_frame(device_id, frame)
+    await screen_preview_hub.set_session(device_id, payload)
+    return {"status": "started", "device_id": device_id, **payload}
+
+
+@router.post(
+    "/api/devices/{device_id}/screen-preview/stop",
+    dependencies=[Depends(require_admin)],
+)
+async def stop_screen_preview(device_id: str):
+    """Ask a connected phone to stop screen preview."""
+    session = screen_preview_hub.get_session(device_id)
+    payload = {"session_id": session.get("session_id")} if session else {}
+    if device_hub.get(device_id) is not None:
+        frame = Frame(
+            type="screen.preview.stop",
+            id=f"screen-preview-stop-{uuid.uuid4().hex}",
+            ts=int(time.time() * 1000),
+            payload=payload,
+        )
+        await device_hub.send_frame(device_id, frame)
+    await screen_preview_hub.clear_session(device_id)
+    return {"status": "stopped", "device_id": device_id}
+
+
+@router.get(
+    "/api/devices/{device_id}/screen-preview/latest",
+    dependencies=[Depends(require_admin)],
+)
+async def get_latest_screen_preview(device_id: str):
+    """Return the most recent preview frame for one device."""
+    frame = screen_preview_hub.get_latest(device_id)
+    if frame is None:
+        raise HTTPException(status_code=404, detail="No preview frame available")
+    return frame.to_dict(include_image=True)
+
+
+@router.get("/downloads/PokeClaw_latest.apk")
+async def download_latest_apk():
+    """Public APK download for quick phone-side installation."""
+    if not APK_DOWNLOAD_PATH.exists():
+        raise HTTPException(status_code=404, detail="APK not uploaded")
+    return FileResponse(
+        APK_DOWNLOAD_PATH,
+        media_type="application/vnd.android.package-archive",
+        filename="PokeClaw_latest.apk",
+    )
 
 
 @router.get(
