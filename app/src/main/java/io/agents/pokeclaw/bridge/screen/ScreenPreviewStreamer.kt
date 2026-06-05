@@ -2,6 +2,10 @@ package io.agents.pokeclaw.bridge.screen
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.util.Base64
 import io.agents.pokeclaw.bridge.api.BridgeLogger
 import io.agents.pokeclaw.bridge.internal.BridgeDispatcher
@@ -171,28 +175,49 @@ internal class ScreenPreviewStreamer(
         val accessibilityMessage = if (service == null) {
             "Accessibility service unavailable"
         } else {
-            val bitmap = service.takeScreenshot(2500L)
-            if (bitmap != null) {
-                return CaptureResult(bitmap = bitmap, message = "Captured via Accessibility")
+            val screenshot = service.takeScreenshotDetailed(2500L)
+            if (screenshot.bitmap != null) {
+                return CaptureResult(bitmap = screenshot.bitmap, message = screenshot.message)
             }
-            "Accessibility screenshot returned empty frame"
+            screenshot.message
         }
 
-        val shellCapture = captureWithScreencap()
+        val shellCapture = captureWithScreencap(
+            label = "screencap",
+            command = arrayOf("/system/bin/screencap", "-p"),
+        )
         if (shellCapture.bitmap != null) {
             logger.i(TAG, "Accessibility screenshot failed; using screencap fallback")
             return shellCapture
         }
+
+        val suCapture = captureWithScreencap(
+            label = "su screencap",
+            command = arrayOf("su", "-c", "/system/bin/screencap -p"),
+        )
+        if (suCapture.bitmap != null) {
+            logger.i(TAG, "Accessibility and regular screencap failed; using su screencap fallback")
+            return suCapture
+        }
+
+        if (service != null) {
+            val treeCapture = captureWithAccessibilityTree(service, "$accessibilityMessage; ${shellCapture.message}; ${suCapture.message}")
+            if (treeCapture.bitmap != null) {
+                logger.i(TAG, "Screenshot capture failed; using accessibility tree preview fallback")
+                return treeCapture
+            }
+        }
+
         return CaptureResult(
             bitmap = null,
-            message = "$accessibilityMessage; ${shellCapture.message}",
+            message = "$accessibilityMessage; ${shellCapture.message}; ${suCapture.message}",
         )
     }
 
-    private fun captureWithScreencap(): CaptureResult {
+    private fun captureWithScreencap(label: String, command: Array<String>): CaptureResult {
         var process: Process? = null
         return try {
-            process = Runtime.getRuntime().exec(arrayOf("/system/bin/screencap", "-p"))
+            process = Runtime.getRuntime().exec(command)
             val bytes = process.inputStream.use { input ->
                 val out = ByteArrayOutputStream()
                 val buffer = ByteArray(16 * 1024)
@@ -205,28 +230,110 @@ internal class ScreenPreviewStreamer(
             }
             val finished = process.waitFor(2500L, TimeUnit.MILLISECONDS)
             if (!finished) {
-                process.destroy()
-                return CaptureResult(bitmap = null, message = "screencap timed out")
+                process.destroyForcibly()
+                return CaptureResult(bitmap = null, message = "$label timed out")
             }
             val exitCode = process.exitValue()
             if (exitCode != 0 || bytes.isEmpty()) {
                 val stderr = process.errorStream.bufferedReader().use { it.readText() }.trim()
                 return CaptureResult(
                     bitmap = null,
-                    message = "screencap failed: exit=$exitCode ${stderr.take(120)}".trim(),
+                    message = "$label failed: exit=$exitCode ${stderr.take(120)}".trim(),
                 )
             }
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             if (bitmap == null) {
-                CaptureResult(bitmap = null, message = "screencap returned undecodable image")
+                CaptureResult(bitmap = null, message = "$label returned undecodable image")
             } else {
-                CaptureResult(bitmap = bitmap, message = "Captured via screencap")
+                CaptureResult(bitmap = bitmap, message = "Captured via $label")
             }
         } catch (t: Throwable) {
-            CaptureResult(bitmap = null, message = "screencap unavailable: ${t.message}")
+            CaptureResult(bitmap = null, message = "$label unavailable: ${t.message}")
         } finally {
             process?.destroy()
         }
+    }
+
+    private fun captureWithAccessibilityTree(
+        service: ClawAccessibilityService,
+        previousMessage: String,
+    ): CaptureResult {
+        return try {
+            val tree = service.getScreenTreeFull()
+            if (tree.isNullOrBlank()) {
+                CaptureResult(bitmap = null, message = "$previousMessage; accessibility tree is empty")
+            } else {
+                CaptureResult(
+                    bitmap = renderAccessibilityTree(tree),
+                    message = "$previousMessage; rendered accessibility tree fallback",
+                )
+            }
+        } catch (t: Throwable) {
+            CaptureResult(bitmap = null, message = "$previousMessage; accessibility tree fallback failed: ${t.message}")
+        }
+    }
+
+    private fun renderAccessibilityTree(tree: String): Bitmap {
+        val width = 720
+        val horizontalPadding = 24f
+        val topPadding = 24f
+        val titleHeight = 48f
+        val lineHeight = 24f
+        val maxChars = 82
+        val rawLines = tree.lineSequence()
+            .map { it.trimEnd() }
+            .filter { it.isNotBlank() }
+            .take(120)
+            .toList()
+        val lines = rawLines.flatMap { line -> wrapLine(line, maxChars) }.ifEmpty {
+            listOf("No visible accessibility nodes")
+        }
+        val height = (topPadding + titleHeight + lineHeight * lines.size + 32f)
+            .toInt()
+            .coerceIn(320, 1800)
+
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.rgb(248, 250, 252))
+
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(15, 23, 42)
+            textSize = 24f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(30, 41, 59)
+            textSize = 17f
+            typeface = Typeface.MONOSPACE
+        }
+        val mutedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(100, 116, 139)
+            textSize = 14f
+        }
+
+        canvas.drawText("PokeClaw accessibility preview", horizontalPadding, topPadding + 24f, titlePaint)
+        canvas.drawText("Real screenshot unavailable; showing current UI tree.", horizontalPadding, topPadding + 46f, mutedPaint)
+
+        var y = topPadding + titleHeight + 22f
+        for (line in lines) {
+            if (y > height - 20f) break
+            canvas.drawText(line, horizontalPadding, y, bodyPaint)
+            y += lineHeight
+        }
+        return bitmap
+    }
+
+    private fun wrapLine(line: String, maxChars: Int): List<String> {
+        if (line.length <= maxChars) return listOf(line)
+        val wrapped = mutableListOf<String>()
+        var index = 0
+        while (index < line.length && wrapped.size < 4) {
+            val end = (index + maxChars).coerceAtMost(line.length)
+            val prefix = if (index == 0) "" else "  "
+            wrapped.add(prefix + line.substring(index, end))
+            index = end
+        }
+        return wrapped
     }
 
     private fun scaleIfNeeded(source: Bitmap, maxWidth: Int): Bitmap {
