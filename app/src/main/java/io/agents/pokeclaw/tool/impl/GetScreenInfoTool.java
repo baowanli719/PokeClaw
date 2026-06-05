@@ -59,6 +59,18 @@ public class GetScreenInfoTool extends BaseTool {
         if (tree == null) {
             return ToolResult.error(SYSTEM_DIALOG_BLOCKED);
         }
+        if (tree.trim().isEmpty()) {
+            String fullTree = service.getScreenTreeFull();
+            if (fullTree != null && !fullTree.trim().isEmpty()) {
+                return ToolResult.success(
+                        "[compact screen tree was empty; using full accessibility tree]\n" + fullTree
+                );
+            }
+            return ToolResult.error(
+                    "Current screen has no visible accessibility nodes. Wait briefly, press back, "
+                            + "or reopen the target app instead of repeating get_screen_info."
+            );
+        }
         return ToolResult.success(tree);
     }
 }

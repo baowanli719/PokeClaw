@@ -27,6 +27,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -767,16 +769,34 @@ public class ClawAccessibilityService extends AccessibilityService {
 
         // Use a background executor for the callback to avoid deadlock
         // when takeScreenshot is called from the main thread (Tier 1 tools).
-        java.util.concurrent.Executor bgExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        ExecutorService bgExecutor = Executors.newSingleThreadExecutor();
         takeScreenshot(Display.DEFAULT_DISPLAY, bgExecutor,
                 new TakeScreenshotCallback() {
                     @Override
                     public void onSuccess(ScreenshotResult result) {
-                        Bitmap bmp = Bitmap.wrapHardwareBuffer(
-                                result.getHardwareBuffer(), result.getColorSpace());
-                        bitmapRef.set(bmp);
-                        result.getHardwareBuffer().close();
-                        latch.countDown();
+                        Bitmap hardwareBitmap = null;
+                        try {
+                            hardwareBitmap = Bitmap.wrapHardwareBuffer(
+                                    result.getHardwareBuffer(), result.getColorSpace());
+                            if (hardwareBitmap == null) {
+                                XLog.e(TAG, "Screenshot returned null hardware bitmap");
+                            } else {
+                                Bitmap softwareBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false);
+                                if (softwareBitmap == null) {
+                                    XLog.e(TAG, "Screenshot hardware bitmap could not be copied");
+                                } else {
+                                    bitmapRef.set(softwareBitmap);
+                                }
+                            }
+                        } catch (Throwable t) {
+                            XLog.e(TAG, "Failed to materialize screenshot bitmap", t);
+                        } finally {
+                            if (hardwareBitmap != null && !hardwareBitmap.isRecycled()) {
+                                hardwareBitmap.recycle();
+                            }
+                            result.getHardwareBuffer().close();
+                            latch.countDown();
+                        }
                     }
 
                     @Override
@@ -790,6 +810,8 @@ public class ClawAccessibilityService extends AccessibilityService {
             latch.await(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } finally {
+            bgExecutor.shutdown();
         }
         return bitmapRef.get();
     }
