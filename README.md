@@ -449,6 +449,20 @@ Every star helps more people find the project. Every issue helps shape the next 
 
 ## Changelog
 
+### v0.7.1 (2026-05-26) — hotfix: global prompt actually flows now
+
+- **Fix for #45 Persistent Global Instructions** — v0.7.0 saved your global prompt to MMKV but never injected it into any LLM call. The injection helper was wired into `AgentConfig.Builder.build()` but the runtime construction path is `ResolvedModelConfig.toAgentConfig()` which uses the data class constructor directly. Verified via in-app logs: zero `PromptUtils` entries on v0.7.0 even with the prompt set. v0.7.1 also injects in `toAgentConfig` so the global prompt now reaches every cloud + local LLM call.
+
+### v0.7.0 (2026-05-26) — feature batch
+
+- **Voice input in chat (#44).** New mic button between the text field and the send button launches Android's built-in speech recognition; the transcript appends to whatever you already typed, so you can dictate the second half of a prompt. Works on any device with Google Speech Services; falls back gracefully with a toast on devices without it. No RECORD_AUDIO permission is requested by PokeClaw — the system dialog handles its own permission.
+- **Persistent global instructions (#45).** New Settings entry under "Models" → "Global instructions". Anything you put here is prepended to every conversation's system prompt — useful for "always reply in Cantonese" or "I'm in Vancouver, default to PST" style rules. Up to 2000 characters; clear the field to disable. Applies to both chat mode and task/agent mode.
+- **Custom local model download URL (#36).** Advanced Settings entry: point PokeClaw at a self-supplied `.litertlm` URL (HuggingFace mirror, your own server, etc.) and it appears as a new row in the Available Models list alongside the built-in Gemma options. File-size validation is relaxed for custom models because we can't know the expected size up front.
+- **Pencil-icon rename shortcut in the sidebar.** Each saved conversation now shows a small edit icon next to its title; tap to rename without having to long-press. Long-press menu still works for delete.
+- **Floating button uses the PokeClaw icon** instead of the "AI" text label.
+- **Debug report includes GPU / OpenCL / RAM / ABI diagnostics** (#41 / #14). Summary now lists supported ABIs, total RAM, and whether `libOpenCL.so` is present at any of the well-known driver paths — community OEM reporters can self-diagnose GPU-path issues without a back-and-forth.
+- **i18n for new features.** Voice input, global prompt, and custom model URL strings shipped in English, Simplified Chinese, and Japanese.
+
 ### v0.6.12 (2026-04-30)
 - **Hotfix for Android background activity launch limits.** External automation now has an exported activity entrypoint for MacroDroid, Tasker, and Locale-style apps, avoiding Android 16 / targetSdk 36 background launch blocking when a broadcast receiver tries to open the chatroom.
 - **MacroDroid setup now uses Activity target.** The verified setup launches `io.agents.pokeclaw.automation.ExternalAutomationActivity` with `RUN_TASK` / `RUN_CHAT` and the same `task` / `chat` extras.
