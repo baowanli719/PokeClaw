@@ -297,7 +297,7 @@ object KVUtils {
     fun setLlmBaseUrl(value: String) = putString(KEY_LLM_BASE_URL, value)
     fun getLlmModelName(): String = getString(KEY_LLM_MODEL_NAME, "")
     fun setLlmModelName(value: String) = putString(KEY_LLM_MODEL_NAME, value)
-    fun getLlmProvider(): String = getString(KEY_LLM_PROVIDER, "OPENAI")
+    fun getLlmProvider(): String = getString(KEY_LLM_PROVIDER, "DEEPSEEK")
     fun setLlmProvider(value: String) = putString(KEY_LLM_PROVIDER, value)
     fun getLocalModelPath(): String = getString(KEY_LOCAL_MODEL_PATH, "")
     fun setLocalModelPath(value: String) = putString(KEY_LOCAL_MODEL_PATH, value)
@@ -360,7 +360,7 @@ object KVUtils {
     /** Returns true if a cloud default model is configured (model + API key both present). */
     fun hasDefaultCloudModel(): Boolean {
         val model = getDefaultCloudModel()
-        val provider = getDefaultCloudProvider().ifEmpty { "OPENAI" }
+        val provider = getDefaultCloudProvider().ifEmpty { "DEEPSEEK" }
         val apiKey = getApiKeyForProvider(provider).ifEmpty { getLlmApiKey() }
         return model.isNotEmpty() && apiKey.isNotEmpty()
     }

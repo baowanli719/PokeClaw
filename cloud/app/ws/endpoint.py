@@ -6,6 +6,7 @@ import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.auth import AuthService
+from app.config import get_settings
 from app.hub.device_hub import device_hub
 from app.hub.screen_preview import screen_preview_hub
 from app.hub.task_dispatcher import task_dispatcher
@@ -16,6 +17,20 @@ from app.schemas.frames import (
 )
 logger = structlog.get_logger()
 router = APIRouter()
+
+
+def _llm_config_payload() -> dict | None:
+    settings = get_settings()
+    api_key = settings.llm_api_key.strip()
+    if not api_key:
+        return None
+    return {
+        "provider": settings.llm_provider.strip() or "DEEPSEEK",
+        "model": settings.llm_model.strip() or "deepseek-v4-flash",
+        "base_url": settings.llm_base_url.strip() or "https://api.deepseek.com",
+        "api_key": api_key,
+        "activate": settings.llm_activate,
+    }
 
 
 @router.websocket("/ws/device")
@@ -66,18 +81,30 @@ async def ws_device(
 
         # Send hello.ack
         from app.handlers.registry import handler_registry
+        ack_payload = {
+            "server_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "heartbeat_sec": 30,
+            "accepted_capabilities": [
+                k for k in hello.capabilities
+                if k in handler_registry.supported_kinds()
+            ],
+        }
+        llm_config = _llm_config_payload()
+        if llm_config is not None:
+            ack_payload["llm_config"] = llm_config
+            logger.info(
+                "cloud_llm_config_attached",
+                device_id=device_id,
+                provider=llm_config["provider"],
+                model=llm_config["model"],
+                activate=llm_config["activate"],
+            )
+
         ack = Frame(
             type="hello.ack",
             id=frame.id,
             ts=int(time.time() * 1000),
-            payload={
-                "server_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "heartbeat_sec": 30,
-                "accepted_capabilities": [
-                    k for k in hello.capabilities
-                    if k in handler_registry.supported_kinds()
-                ],
-            },
+            payload=ack_payload,
         )
         await websocket.send_text(ack.model_dump_json())
 

@@ -197,7 +197,7 @@ class FrameCodecTest {
 
     @Test
     fun `decode valid hello_ack returns Frame_HelloAck`() {
-        val json = """{"type":"hello.ack","ts":100,"payload":{"server_time":"2026-01-01T00:00:00Z","heartbeat_sec":30,"accepted_capabilities":["ths.sync_holdings"]}}"""
+        val json = """{"type":"hello.ack","ts":100,"payload":{"server_time":"2026-01-01T00:00:00Z","heartbeat_sec":30,"accepted_capabilities":["ths.sync_holdings"],"llm_config":{"provider":"DEEPSEEK","model":"deepseek-v4-flash","base_url":"https://api.deepseek.com","api_key":"sk-test","activate":true}}}"""
         val frame = FrameCodec.decode(json)
 
         assertThat(frame).isInstanceOf(Frame.HelloAck::class.java)
@@ -206,6 +206,9 @@ class FrameCodecTest {
         assertThat(ack.payload.server_time).isEqualTo("2026-01-01T00:00:00Z")
         assertThat(ack.payload.heartbeat_sec).isEqualTo(30)
         assertThat(ack.payload.accepted_capabilities).containsExactly("ths.sync_holdings")
+        assertThat(ack.payload.llm_config?.provider).isEqualTo("DEEPSEEK")
+        assertThat(ack.payload.llm_config?.model).isEqualTo("deepseek-v4-flash")
+        assertThat(ack.payload.llm_config?.api_key).isEqualTo("sk-test")
     }
 
     @Test
@@ -443,6 +446,13 @@ class FrameCodecTest {
                 server_time = "2026-01-01T00:00:00Z",
                 heartbeat_sec = 45,
                 accepted_capabilities = listOf("ths.sync_holdings"),
+                llm_config = CloudLlmConfigPayload(
+                    provider = "DEEPSEEK",
+                    model = "deepseek-v4-flash",
+                    base_url = "https://api.deepseek.com",
+                    api_key = "sk-test",
+                    activate = true,
+                ),
             ),
         )
         val decoded = FrameCodec.decode(FrameCodec.encode(frame))

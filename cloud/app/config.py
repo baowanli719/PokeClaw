@@ -18,6 +18,8 @@ class Settings(BaseSettings):
         HEARTBEAT_INTERVAL_SEC: Seconds between expected heartbeats. Default: 30.
         STALE_TIMEOUT_SEC: Seconds without any frame before closing connection. Default: 90.
         DEADLINE_CHECK_INTERVAL_SEC: How often to sweep for timed-out tasks. Default: 10.
+        LLM_PROVIDER, LLM_MODEL, LLM_BASE_URL, LLM_API_KEY: Optional phone-side
+            cloud LLM config sent to devices during the WebSocket hello handshake.
     """
 
     # Required
@@ -30,6 +32,11 @@ class Settings(BaseSettings):
     heartbeat_interval_sec: int = 30
     stale_timeout_sec: int = 90
     deadline_check_interval_sec: int = 10
+    llm_provider: str = "DEEPSEEK"
+    llm_model: str = "deepseek-v4-flash"
+    llm_base_url: str = "https://api.deepseek.com"
+    llm_api_key: str = ""
+    llm_activate: bool = True
 
     @property
     def device_token_set(self) -> set[str]:

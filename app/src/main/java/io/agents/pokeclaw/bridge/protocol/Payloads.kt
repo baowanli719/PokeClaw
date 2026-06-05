@@ -16,6 +16,15 @@ data class HelloAckPayload(
     val server_time: String,
     val heartbeat_sec: Int,
     val accepted_capabilities: List<String> = emptyList(),
+    val llm_config: CloudLlmConfigPayload? = null,
+)
+
+data class CloudLlmConfigPayload(
+    val provider: String = "DEEPSEEK",
+    val model: String = "deepseek-v4-flash",
+    val base_url: String? = null,
+    val api_key: String? = null,
+    val activate: Boolean = true,
 )
 
 data class HeartbeatPayload(
