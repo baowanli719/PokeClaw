@@ -27,6 +27,7 @@ class TaskOrchestratorExecutorAdapterTest {
         adapter = TaskOrchestratorExecutorAdapter(
             orchestrator = fakeOrchestrator,
             resultSink = resultSink,
+            thsSyncHoldingsExecutor = null,
         )
     }
 

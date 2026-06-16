@@ -59,6 +59,7 @@ class TaskOrchestratorExecutorAdapter(
     private val orchestrator: OrchestratorPort,
     private val resultSink: CloudTaskResultSink,
     private val kindMapper: KindMapper = CloudKindMapper,
+    private val thsSyncHoldingsExecutor: ThsSyncHoldingsExecutor? = ThsSyncHoldingsExecutor(),
 ) : TaskExecutor {
 
     /** Convenience constructor accepting the real TaskOrchestrator. */
@@ -66,7 +67,8 @@ class TaskOrchestratorExecutorAdapter(
         orchestrator: TaskOrchestrator,
         resultSink: CloudTaskResultSink,
         kindMapper: KindMapper = CloudKindMapper,
-    ) : this(RealOrchestratorPort(orchestrator), resultSink, kindMapper)
+        thsSyncHoldingsExecutor: ThsSyncHoldingsExecutor? = ThsSyncHoldingsExecutor(),
+    ) : this(RealOrchestratorPort(orchestrator), resultSink, kindMapper, thsSyncHoldingsExecutor)
 
     override fun execute(
         requestId: String,
@@ -75,6 +77,10 @@ class TaskOrchestratorExecutorAdapter(
         deadlineTsMillis: Long?,
         callback: TaskExecutorCallback,
     ): TaskHandle {
+        if (kind == CloudBridgeCapabilities.THS_SYNC_HOLDINGS && thsSyncHoldingsExecutor != null) {
+            return thsSyncHoldingsExecutor.execute(requestId, params, callback)
+        }
+
         // 1. Register in result sink for structured result delivery
         resultSink.register(requestId, kind, callback)
 
@@ -150,6 +156,7 @@ class TaskOrchestratorExecutorAdapter(
     }
 
     override fun cancel(requestId: String) {
+        thsSyncHoldingsExecutor?.cancel(requestId)
         if (orchestrator.inProgressTaskMessageId == requestId &&
             orchestrator.inProgressTaskChannel == Channel.CLOUD
         ) {
