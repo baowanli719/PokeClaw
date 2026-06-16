@@ -46,7 +46,11 @@ class ConnectionManagerTest {
             stateChanges.add(newState)
         }
 
-        override fun onAuthenticated(heartbeatSec: Int, acceptedCapabilities: List<String>) {
+        override fun onAuthenticated(
+            heartbeatSec: Int,
+            acceptedCapabilities: List<String>,
+            llmConfig: io.agents.pokeclaw.bridge.protocol.CloudLlmConfigPayload?,
+        ) {
             // no-op for these tests
         }
 

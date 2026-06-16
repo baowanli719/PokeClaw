@@ -1,5 +1,6 @@
 package io.agents.pokeclaw.bridge
 
+import io.agents.pokeclaw.agent.llm.ModelConfigRepository
 import io.agents.pokeclaw.bridge.api.BridgeConfig
 import io.agents.pokeclaw.bridge.api.BridgeLogger
 import io.agents.pokeclaw.bridge.api.CapabilityProvider
@@ -13,6 +14,7 @@ import io.agents.pokeclaw.bridge.internal.BridgeDispatcher
 import io.agents.pokeclaw.bridge.internal.Clock
 import io.agents.pokeclaw.bridge.internal.SystemClock
 import io.agents.pokeclaw.bridge.protocol.Frame
+import io.agents.pokeclaw.bridge.protocol.CloudLlmConfigPayload
 import io.agents.pokeclaw.bridge.protocol.HeartbeatPayload
 import io.agents.pokeclaw.bridge.protocol.HelloPayload
 import io.agents.pokeclaw.bridge.queue.OfflineOutbox
@@ -142,8 +144,13 @@ class CloudBridgeClient(
             }
         }
 
-        override fun onAuthenticated(heartbeatSec: Int, acceptedCapabilities: List<String>) {
+        override fun onAuthenticated(
+            heartbeatSec: Int,
+            acceptedCapabilities: List<String>,
+            llmConfig: CloudLlmConfigPayload?,
+        ) {
             logger.i(TAG, "Authenticated — heartbeat_sec=$heartbeatSec, accepted=$acceptedCapabilities")
+            applyCloudLlmConfig(llmConfig)
             _state.value = ConnectionState.Authenticated
             offlineOutbox.setAuthenticated(true)
             heartbeatScheduler.start(heartbeatSec)
@@ -345,6 +352,33 @@ class CloudBridgeClient(
 
         logger.i(TAG, "Sending hello: capabilities=$capabilities, battery=${snapshot.batteryLevel}")
         connectionManager.sendHello(payload)
+    }
+
+    private fun applyCloudLlmConfig(config: CloudLlmConfigPayload?) {
+        if (config == null) return
+
+        val provider = config.provider.ifBlank { "DEEPSEEK" }.uppercase()
+        val model = config.model.ifBlank { "deepseek-v4-flash" }
+        val apiKey = config.api_key?.trim().orEmpty()
+        val baseUrl = config.base_url?.trim().orEmpty()
+
+        if (apiKey.isBlank()) {
+            logger.w(TAG, "Cloud LLM config ignored: missing api_key for provider=$provider model=$model")
+            return
+        }
+
+        try {
+            ModelConfigRepository.saveCloudDefault(
+                providerName = provider,
+                modelId = model,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                activateNow = config.activate,
+            )
+            logger.i(TAG, "Applied cloud LLM config: provider=$provider model=$model activate=${config.activate}")
+        } catch (t: Throwable) {
+            logger.e(TAG, "Failed to apply cloud LLM config: ${t.message}", t)
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════

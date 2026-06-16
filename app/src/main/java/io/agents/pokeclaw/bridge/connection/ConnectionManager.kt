@@ -9,6 +9,7 @@ import io.agents.pokeclaw.bridge.internal.Clock
 import io.agents.pokeclaw.bridge.protocol.Frame
 import io.agents.pokeclaw.bridge.protocol.FrameCodec
 import io.agents.pokeclaw.bridge.protocol.HelloPayload
+import io.agents.pokeclaw.bridge.protocol.CloudLlmConfigPayload
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -43,7 +44,11 @@ internal class ConnectionManager(
 
     interface Callback {
         fun onStateChanged(newState: ConnectionState)
-        fun onAuthenticated(heartbeatSec: Int, acceptedCapabilities: List<String>)
+        fun onAuthenticated(
+            heartbeatSec: Int,
+            acceptedCapabilities: List<String>,
+            llmConfig: CloudLlmConfigPayload?,
+        )
         fun onFrameReceived(frame: Frame)
         fun onDisconnected()
     }
@@ -231,6 +236,7 @@ internal class ConnectionManager(
         callback?.onAuthenticated(
             frame.payload.heartbeat_sec,
             frame.payload.accepted_capabilities,
+            frame.payload.llm_config,
         )
     }
 

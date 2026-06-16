@@ -41,7 +41,7 @@ class LlmConfigActivity : BaseActivity() {
 
     private val executor = Executors.newSingleThreadExecutor()
     private var isDownloading = false
-    private var selectedProvider: CloudProvider = CloudProvider.OPENAI
+    private var selectedProvider: CloudProvider = CloudProvider.DEEPSEEK
     private var selectedModelId: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {

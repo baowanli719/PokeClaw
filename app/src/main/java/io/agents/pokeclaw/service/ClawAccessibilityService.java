@@ -27,6 +27,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -759,29 +761,68 @@ public class ClawAccessibilityService extends AccessibilityService {
      * Returns the bitmap or null on failure.
      */
     public Bitmap takeScreenshot(long timeoutMs) {
+        return takeScreenshotDetailed(timeoutMs).bitmap;
+    }
+
+    public static class ScreenshotCaptureResult {
+        public final Bitmap bitmap;
+        public final String message;
+
+        ScreenshotCaptureResult(Bitmap bitmap, String message) {
+            this.bitmap = bitmap;
+            this.message = message;
+        }
+    }
+
+    public ScreenshotCaptureResult takeScreenshotDetailed(long timeoutMs) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            return null;
+            return new ScreenshotCaptureResult(null, "Accessibility screenshot requires Android 11+");
         }
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Bitmap> bitmapRef = new AtomicReference<>(null);
+        AtomicReference<String> messageRef = new AtomicReference<>("Accessibility screenshot timed out");
 
         // Use a background executor for the callback to avoid deadlock
         // when takeScreenshot is called from the main thread (Tier 1 tools).
-        java.util.concurrent.Executor bgExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        ExecutorService bgExecutor = Executors.newSingleThreadExecutor();
         takeScreenshot(Display.DEFAULT_DISPLAY, bgExecutor,
                 new TakeScreenshotCallback() {
                     @Override
                     public void onSuccess(ScreenshotResult result) {
-                        Bitmap bmp = Bitmap.wrapHardwareBuffer(
-                                result.getHardwareBuffer(), result.getColorSpace());
-                        bitmapRef.set(bmp);
-                        result.getHardwareBuffer().close();
-                        latch.countDown();
+                        Bitmap hardwareBitmap = null;
+                        try {
+                            hardwareBitmap = Bitmap.wrapHardwareBuffer(
+                                    result.getHardwareBuffer(), result.getColorSpace());
+                            if (hardwareBitmap == null) {
+                                messageRef.set("Accessibility screenshot returned null hardware bitmap");
+                                XLog.e(TAG, messageRef.get());
+                            } else {
+                                Bitmap softwareBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false);
+                                if (softwareBitmap == null) {
+                                    messageRef.set("Accessibility screenshot hardware bitmap could not be copied");
+                                    XLog.e(TAG, messageRef.get());
+                                } else {
+                                    bitmapRef.set(softwareBitmap);
+                                    messageRef.set("Captured via Accessibility");
+                                }
+                            }
+                        } catch (Throwable t) {
+                            messageRef.set("Failed to materialize accessibility screenshot: " + t.getMessage());
+                            XLog.e(TAG, "Failed to materialize screenshot bitmap", t);
+                        } finally {
+                            if (hardwareBitmap != null && !hardwareBitmap.isRecycled()) {
+                                hardwareBitmap.recycle();
+                            }
+                            result.getHardwareBuffer().close();
+                            latch.countDown();
+                        }
                     }
 
                     @Override
                     public void onFailure(int errorCode) {
-                        XLog.e(TAG, "Screenshot failed with error code: " + errorCode);
+                        messageRef.set("Accessibility screenshot failed: code=" + errorCode
+                                + " (" + screenshotErrorName(errorCode) + ")");
+                        XLog.e(TAG, messageRef.get());
                         latch.countDown();
                     }
                 });
@@ -790,8 +831,27 @@ public class ClawAccessibilityService extends AccessibilityService {
             latch.await(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } finally {
+            bgExecutor.shutdown();
         }
-        return bitmapRef.get();
+        return new ScreenshotCaptureResult(bitmapRef.get(), messageRef.get());
+    }
+
+    private static String screenshotErrorName(int errorCode) {
+        switch (errorCode) {
+            case 1:
+                return "internal_error";
+            case 2:
+                return "no_accessibility_access";
+            case 3:
+                return "interval_too_short";
+            case 4:
+                return "invalid_display";
+            case 5:
+                return "secure_window";
+            default:
+                return "unknown";
+        }
     }
 
     // ======================== Key Event Injection (TV Remote) ========================

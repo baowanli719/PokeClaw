@@ -88,9 +88,11 @@ data class ResolvedModelConfig(
  * the persisted key format. This is the single source of truth for model selection.
  */
 object ModelConfigRepository {
+    private const val DEFAULT_CLOUD_PROVIDER = "DEEPSEEK"
+    private const val DEFAULT_CLOUD_MODEL = "deepseek-v4-flash"
 
     fun snapshot(): ResolvedModelConfig {
-        val activeProviderRaw = KVUtils.getLlmProvider().ifBlank { "OPENAI" }.uppercase()
+        val activeProviderRaw = KVUtils.getLlmProvider().ifBlank { DEFAULT_CLOUD_PROVIDER }.uppercase()
         val activeMode = if (activeProviderRaw == "LOCAL") ActiveModelMode.LOCAL else ActiveModelMode.CLOUD
 
         val localModelPath = KVUtils.getLocalModelPath()
@@ -110,14 +112,14 @@ object ModelConfigRepository {
 
         val defaultProvider = normalizeCloudProvider(
             KVUtils.getDefaultCloudProvider().ifBlank {
-                if (activeMode == ActiveModelMode.CLOUD) activeProviderRaw else "OPENAI"
+                if (activeMode == ActiveModelMode.CLOUD) activeProviderRaw else DEFAULT_CLOUD_PROVIDER
             }
         )
         val defaultModel = KVUtils.getDefaultCloudModel().ifBlank {
             if (activeMode == ActiveModelMode.CLOUD && activeProviderRaw == defaultProvider) {
-                KVUtils.getLlmModelName()
+                KVUtils.getLlmModelName().ifBlank { DEFAULT_CLOUD_MODEL }
             } else {
-                ""
+                DEFAULT_CLOUD_MODEL
             }
         }
         val defaultBaseUrl = KVUtils.getDefaultCloudBaseUrl().ifBlank {
@@ -235,8 +237,8 @@ object ModelConfigRepository {
     }
 
     private fun normalizeCloudProvider(providerName: String): String {
-        val normalized = providerName.ifBlank { "OPENAI" }.uppercase()
-        return if (normalized == "LOCAL") "OPENAI" else normalized
+        val normalized = providerName.ifBlank { DEFAULT_CLOUD_PROVIDER }.uppercase()
+        return if (normalized == "LOCAL") DEFAULT_CLOUD_PROVIDER else normalized
     }
 
     private fun resolveCloudBaseUrl(providerName: String, baseUrl: String): String {
