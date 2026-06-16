@@ -20,7 +20,6 @@ class Settings(BaseSettings):
         DEADLINE_CHECK_INTERVAL_SEC: How often to sweep for timed-out tasks. Default: 10.
         LLM_PROVIDER, LLM_MODEL, LLM_BASE_URL, LLM_API_KEY: Optional phone-side
             cloud LLM config sent to devices during the WebSocket hello handshake.
-        APK_ARTIFACT_DIR: Directory containing APK files served by /downloads.
     """
 
     # Required
@@ -38,7 +37,6 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.deepseek.com"
     llm_api_key: str = ""
     llm_activate: bool = True
-    apk_artifact_dir: str = "artifacts/apk"
 
     @property
     def device_token_set(self) -> set[str]:

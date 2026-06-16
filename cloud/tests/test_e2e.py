@@ -110,36 +110,6 @@ async def test_admin_info_requires_token(app, admin_headers):
 
 
 @pytest.mark.asyncio
-async def test_apk_download_missing(app, monkeypatch, tmp_path):
-    """APK download returns 404 when no artifact has been placed on the server."""
-    monkeypatch.setenv("APK_ARTIFACT_DIR", str(tmp_path))
-    from app.config import get_settings
-    get_settings.cache_clear()
-
-    transport = ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/downloads/PokeClaw_latest.apk")
-        assert resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_apk_download_serves_latest(app, monkeypatch, tmp_path):
-    """APK download serves the latest artifact with Android package media type."""
-    apk = tmp_path / "PokeClaw_latest.apk"
-    apk.write_bytes(b"fake-apk")
-    monkeypatch.setenv("APK_ARTIFACT_DIR", str(tmp_path))
-    from app.config import get_settings
-    get_settings.cache_clear()
-
-    transport = ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/downloads/PokeClaw_latest.apk")
-        assert resp.status_code == 200
-        assert resp.content == b"fake-apk"
-        assert resp.headers["content-type"] == "application/vnd.android.package-archive"
-
-
-@pytest.mark.asyncio
 async def test_auth_rejection(app):
     """REST endpoints reject requests without valid admin token."""
     transport = ASGITransport(app=app)
